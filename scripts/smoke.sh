@@ -12,10 +12,27 @@ for file in \
   README.md \
   docs/ARCHITECTURE.md \
   docs/HANDOVER_PROMPT.md \
+  src/commitment.mjs \
+  src/commitment.cjs \
+  src/commitment.d.ts \
+  src/ledger.mjs \
+  src/ledger.cjs \
+  src/ledger.d.ts \
+  src/entropy.mjs \
+  src/entropy.cjs \
+  src/entropy.d.ts \
+  src/networks/claim-levels.mjs \
+  src/networks/claim-levels.cjs \
+  src/networks/claim-levels.d.ts \
+  src/networks/kaspa-evidence.mjs \
+  src/networks/kaspa-evidence.cjs \
+  src/networks/kaspa-evidence.d.ts \
+  src/proof/verify.mjs \
+  src/proof/verify.cjs \
+  src/proof/verify.d.ts \
   src/index.mjs \
-  src/http-client.mjs \
-  src/http-client.cjs \
-  src/http-client.d.ts \
+  src/index.cjs \
+  src/index.d.ts \
   examples/roulette-poc/index.html \
   examples/roulette-poc/app.js \
   examples/roulette-poc/styles.css \
@@ -26,25 +43,122 @@ for file in \
 done
 pass KASPA_POF_REQUIRED_FILES
 
+node --check src/commitment.mjs >/dev/null
+node --check src/ledger.mjs >/dev/null
+node --check src/entropy.mjs >/dev/null
+node --check src/networks/claim-levels.mjs >/dev/null
+node --check src/networks/kaspa-evidence.mjs >/dev/null
+node --check src/proof/verify.mjs >/dev/null
+node --check src/index.mjs >/dev/null
+node --check src/commitment.cjs >/dev/null
+node --check src/ledger.cjs >/dev/null
+node --check src/entropy.cjs >/dev/null
+node --check src/networks/claim-levels.cjs >/dev/null
+node --check src/networks/kaspa-evidence.cjs >/dev/null
+node --check src/proof/verify.cjs >/dev/null
+node --check src/index.cjs >/dev/null
 node --check examples/roulette-poc/app.js >/dev/null
 node --check examples/roulette-poc/roulette-table-layout.js >/dev/null
 node --check examples/roulette-poc/roulette-table-renderer.js >/dev/null
 pass KASPA_POF_ROULETTE_JS_SYNTAX
 
 node --input-type=module - <<'NODE'
-import { createToccataApiClient, ToccataApiClient } from './src/index.mjs';
-if (typeof createToccataApiClient !== 'function') throw new Error('createToccataApiClient export missing');
-if (typeof ToccataApiClient !== 'function') throw new Error('ToccataApiClient export missing');
-const client = createToccataApiClient({ baseUrl: 'http://127.0.0.1:1', fetchImpl: async () => new Response('{}') });
-if (!client || typeof client.health !== 'function') throw new Error('client.health missing');
+import * as api from './src/index.mjs';
+if (typeof api.verifyFairnessProof !== 'function') throw new Error('verifyFairnessProof export missing');
+if (typeof api.hashCommitment !== 'function') throw new Error('hashCommitment export missing');
+if ('createToccataApiClient' in api) throw new Error('legacy HTTP client must not be exported from package root');
 NODE
 pass KASPA_POF_PACKAGE_IMPORT
+
+node --input-type=module - <<'NODE'
+import { hashCommitment, verifyCommitment } from './src/index.mjs';
+const hash = hashCommitment('kaspa-pof-api smoke seed');
+if (hash !== '982654a7ca3c04ee384abd27dcd566aa97f82ded6696f70bc3583a29d617ba60') throw new Error(`unexpected commitment hash ${hash}`);
+const result = verifyCommitment({ serverSeed: 'kaspa-pof-api smoke seed', commitment: hash });
+if (!result.ok) throw new Error('commitment verification failed');
+NODE
+pass KASPA_POF_COMMITMENT_VERIFY
+
+node --input-type=module - <<'NODE'
+import { hashLedger, verifyLedger } from './src/index.mjs';
+const entries = [{ selection: 'red', amount: 10, playerId: 'alice' }];
+const hash = hashLedger(entries);
+if (hash !== 'a058ff5d83db878511b3ec2491d80e5a79bc32e01c922bde75e9d56cc933665b') throw new Error(`unexpected ledger hash ${hash}`);
+const result = verifyLedger({ entries, ledgerHash: hash });
+if (!result.ok) throw new Error('ledger verification failed');
+NODE
+pass KASPA_POF_LEDGER_HASH
+
+node --input-type=module - <<'NODE'
+import { deriveEntropyHash, verifyEntropyHash } from './src/index.mjs';
+const input = {
+  roundId: 'smoke-round',
+  commitment: '982654a7ca3c04ee384abd27dcd566aa97f82ded6696f70bc3583a29d617ba60',
+  clientSeed: 'smoke-client-seed',
+  ledgerHash: 'a058ff5d83db878511b3ec2491d80e5a79bc32e01c922bde75e9d56cc933665b',
+  blockEvidence: {
+    blockHash: '0000000000000000000000000000000000000000000000000000000000000001',
+    daaScore: '1000',
+    blueScore: '2000'
+  }
+};
+const { entropyHash } = deriveEntropyHash(input);
+if (entropyHash !== '4096cb0f7410ef06270f8f34f74f860e2271f5694a2b07818c0b81a89c116ef0') throw new Error(`unexpected entropy hash ${entropyHash}`);
+if (!verifyEntropyHash({ ...input, entropyHash }).ok) throw new Error('entropy verification failed');
+NODE
+pass KASPA_POF_ENTROPY_DERIVE
+
+node --input-type=module - <<'NODE'
+import { validateKaspaBlockEvidence } from './src/index.mjs';
+const result = validateKaspaBlockEvidence({
+  claimLevel: 'tn10_future_entropy',
+  network: { family: 'kaspa', networkId: 'testnet-10', label: 'kaspa-tn10' },
+  target: { metric: 'daaScore', score: '1000' },
+  block: {
+    networkId: 'testnet-10',
+    blockHash: '0000000000000000000000000000000000000000000000000000000000000001',
+    daaScore: '1001',
+    blueScore: '2000'
+  }
+});
+if (!result.ok) throw new Error(`Kaspa evidence validation failed: ${result.code}`);
+NODE
+pass KASPA_POF_KASPA_EVIDENCE_VALIDATE
+
+node --input-type=module - <<'NODE'
+import { deriveEntropyHash, hashCommitment, hashLedger, verifyFairnessProof } from './src/index.mjs';
+const serverSeed = 'smoke proof server seed';
+const clientSeed = 'smoke proof client seed';
+const entries = [{ participant: 'alice', input: 'A' }];
+const commitment = hashCommitment(serverSeed);
+const ledgerHash = hashLedger(entries);
+const block = {
+  networkId: 'testnet-10',
+  blockHash: '0000000000000000000000000000000000000000000000000000000000000001',
+  daaScore: '1001',
+  blueScore: '2001'
+};
+const entropy = deriveEntropyHash({ roundId: 'smoke-proof-round', commitment, clientSeed, ledgerHash, blockEvidence: block });
+const result = verifyFairnessProof({
+  schema: 'kaspa-pof-api/proof/v1',
+  claimLevel: 'tn10_future_entropy',
+  network: { family: 'kaspa', networkId: 'testnet-10', label: 'kaspa-tn10' },
+  round: { roundId: 'smoke-proof-round', appId: 'smoke-proof-app' },
+  commitment: { algorithm: 'sha256', serverSeedHash: commitment },
+  ledger: { algorithm: 'stable-json-sha256', entries, ledgerHash },
+  entropy: { algorithm: 'sha256', target: { metric: 'daaScore', score: '1000' }, block, entropyHash: entropy.entropyHash, source: entropy.source },
+  reveal: { serverSeed, clientSeed }
+});
+if (!result.ok) throw new Error(`fairness proof verification failed: ${JSON.stringify(result.errors)}`);
+NODE
+pass KASPA_POF_PROOF_VERIFY_LOCAL
 
 node - <<'NODE'
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 if (pkg.name !== 'kaspa-pof-api') throw new Error(`unexpected package name ${pkg.name}`);
 if (!pkg.exports || !pkg.exports['.']) throw new Error('package root export missing');
+if (pkg.exports['./http-client']) throw new Error('legacy HTTP client export must not be published');
 NODE
 pass KASPA_POF_PACKAGE_METADATA
 

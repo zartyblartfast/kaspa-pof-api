@@ -2,12 +2,9 @@
 
 ## Decision
 
-Use `kaspa-pof-api` as a fresh monorepo for both:
+Use `kaspa-pof-api` as the general-purpose npm proof-of-fairness package foundation.
 
-1. the general-purpose npm proof-of-fairness package; and
-2. a roulette PoC/example app that consumes that package.
-
-The package is the product/API foundation. The roulette app is an example consumer.
+Roulette is an example consumer, not the package source of truth. The current deployed roulette app remains on the old npm API plus its own VPS node/server. A new roulette consumer should be cloned/adapted separately to use this package runtime model.
 
 ## Why fresh repo
 
@@ -47,16 +44,16 @@ Reusable, app-agnostic modules:
 - optional tx anchor payload builders
 - optional fee estimation helpers
 
-### Example app layer
+### Consumer app layer
 
-`examples/roulette-poc/` should contain roulette-specific UI and outcome mapping:
+A roulette consumer may contain roulette-specific UI and outcome mapping:
 
 - table rendering
 - chip placement
 - roulette result display
 - proof status presentation
 
-It should import `kaspa-pof-api` like an external app developer would.
+It should import `kaspa-pof-api` like an external app developer would. The package must not depend on roulette-specific files or assumptions.
 
 ### Optional service layer
 

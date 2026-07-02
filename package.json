@@ -22,25 +22,20 @@
     "tn10"
   ],
   "scripts": {
+    "test": "node --test",
     "smoke": "scripts/smoke.sh"
   },
   "engines": {
     "node": ">=20"
   },
-  "main": "./src/http-client.cjs",
-  "types": "./src/http-client.d.ts",
+  "main": "./src/index.cjs",
+  "types": "./src/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/http-client.d.ts",
+      "types": "./src/index.d.ts",
       "import": "./src/index.mjs",
-      "require": "./src/http-client.cjs",
+      "require": "./src/index.cjs",
       "default": "./src/index.mjs"
-    },
-    "./http-client": {
-      "types": "./src/http-client.d.ts",
-      "import": "./src/http-client.mjs",
-      "require": "./src/http-client.cjs",
-      "default": "./src/http-client.mjs"
     }
   },
   "files": [

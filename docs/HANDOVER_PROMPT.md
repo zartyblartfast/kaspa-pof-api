@@ -54,43 +54,28 @@ The server must not be the proof authority. Any service may supply evidence, but
 - For UI/product work, do not make unrequested layout changes.
 - For commercial/mainnet thinking: no-spend future-entropy verification should be default; paid mainnet anchoring can be optional if explicit, fee-estimated, and fee-capped.
 
-## Current scaffold contents
+## Current package contents
 
-This repo has been initialized with selected basis files only:
+The package root is runtime-first and exports local proof/fairness primitives. The legacy `src/http-client.*` files have been removed from package source and exports.
+
+Key package modules now include:
 
 ```text
-src/http-client.mjs
-src/http-client.cjs
-src/http-client.d.ts
-src/index.mjs
-examples/roulette-poc/
-docs/ARCHITECTURE.md
-docs/PACKAGE_SPEC.md
-docs/NEXT_PHASE_PLAN.md
-docs/HERMES_PROFILE_SETUP.md
-docs/HANDOVER_PROMPT.md
+src/commitment.mjs|cjs|d.ts
+src/ledger.mjs|cjs|d.ts
+src/entropy.mjs|cjs|d.ts
+src/networks/claim-levels.mjs|cjs|d.ts
+src/networks/kaspa-evidence.mjs|cjs|d.ts
+src/proof/verify.mjs|cjs|d.ts
+src/index.mjs|cjs|d.ts
+test/
+docs/
 references/
 ```
 
-The copied HTTP client is legacy migration material from `kaspa-toccata-api`; it is not the desired final center of gravity.
+The root API includes local functions such as `hashCommitment`, `hashLedger`, `deriveEntropyHash`, `validateKaspaBlockEvidence`, and `verifyFairnessProof` / `verifyProofBundle` / `verifyProofOfFairness`.
 
-The copied roulette example has been adjusted to import:
-
-```js
-import { createToccataApiClient } from 'kaspa-pof-api';
-```
-
-through an import map:
-
-```json
-{
-  "imports": {
-    "kaspa-pof-api": "/src/index.mjs"
-  }
-}
-```
-
-This is only a baseline. The next work should move proof verification/runtime primitives into package modules and reduce dependence on HTTP verification.
+The copied `examples/roulette-poc/` material is legacy/reference material from the old app lineage. The current deployed roulette app uses the old npm API plus its own VPS node/server and can continue unchanged. A new roulette consumer should be cloned/adapted separately to use this package runtime model.
 
 ## Reference repos
 
@@ -127,10 +112,11 @@ references/verify-tn10-transactions-source.md
    - entropy hash derivation;
    - deterministic outcome derivation hooks;
    - proof replay/verification.
-3. Make roulette example verify locally through the package rather than relying on `/v1/proofs/verify` as proof authority.
-4. Add Kaspa/TN10/mainnet block-evidence validators for no-spend future entropy.
-5. Add optional transaction anchoring payload builders and fee estimators as higher claim-level support.
-6. Only then consider optional HTTP/VPS/Vercel/Python adapters.
+3. Add app-defined outcome helper APIs and optional roulette outcome examples without making roulette a package assumption.
+4. Add fuller transaction-anchor payload/evidence validators and fee estimators as higher claim-level support.
+5. Document paid feature gates clearly: explicit enablement, fee estimate, fee cap, acknowledgement, no hidden broadcasting.
+6. Create/adapt a separate new roulette consumer that verifies locally through the package runtime.
+7. Only then consider optional transport adapters. Do not reintroduce an HTTP-centered root API.
 
 ## Working rule
 
@@ -146,4 +132,4 @@ Run:
 npm run smoke
 ```
 
-The smoke currently checks syntax/import wiring and confirms the roulette example uses package-name import/pathing. Add stronger tests as soon as real primitives are extracted.
+The smoke checks package runtime exports, deterministic commitment/ledger/entropy behavior, Kaspa evidence validation, local proof verification, syntax, and fixture-trap guards. `npm test` runs the unit suite.

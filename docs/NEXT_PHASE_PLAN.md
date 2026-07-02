@@ -4,7 +4,7 @@
 
 Turn `kaspa-pof-api` from a migration scaffold into a general-purpose npm package whose core value is local, reusable proof-of-fairness verification using Kaspa/TN10/mainnet evidence.
 
-Roulette remains the first example app, but the package must support other apps with similar fairness objectives.
+Roulette remains the first intended consumer, but the package must support other apps with similar fairness objectives. The current deployed roulette app can remain on its old npm API plus VPS node/server; a new roulette consumer should be cloned/adapted separately for this package.
 
 ## Non-goals for this phase
 
@@ -26,7 +26,7 @@ kaspa-pof-api verifies that proof locally
 roulette displays local verification result
 ```
 
-The old HTTP `/v1/proofs/verify` service may remain as a comparison/reference path, but it must not be the only proof authority for the PoC.
+The old HTTP `/v1/proofs/verify` service remains only a historical/reference path in the old project. It is not exported by this package and must not be the proof authority for new consumers.
 
 ## Architecture principle
 
@@ -160,7 +160,7 @@ Acceptance criteria:
 - Network mismatch fails verification.
 - Claim level accurately communicates what was proven.
 
-## Workstream 5: Update roulette example to use local package verification
+## Workstream 5: Build a separate roulette consumer that uses local package verification
 
 Planned files:
 
@@ -173,36 +173,29 @@ examples/roulette-poc/README.md
 Expected app flow:
 
 ```text
-service/client provides round/proof data for now
+consumer/service provides or fetches round/proof evidence
 roulette app calls verifyProofBundle(proof) from kaspa-pof-api
 UI displays local verification result
 ```
 
 Acceptance criteria:
 
-- Roulette no longer relies solely on `/v1/proofs/verify` for proof authority.
+- New roulette consumer does not rely on `/v1/proofs/verify` for proof authority.
 - Existing package-name import remains.
 - No raw app-level `/v1/*` fetches are added.
 - No mock/offline/static result proof path is added.
 
-## Workstream 6: Optional HTTP adapter boundary
+## Workstream 6: Optional transport adapters, after runtime stabilization
 
-Keep HTTP support as an adapter, not the core package.
+The legacy HTTP client has been removed from package exports and source. Do not reintroduce an HTTP-centered API.
 
-Planned files:
-
-```text
-src/adapters/http-client.mjs
-src/adapters/http-client.cjs
-```
-
-Current `src/http-client.*` can either move there or be re-exported as legacy compatibility.
+Future transport adapters, if needed, should be designed after the runtime API is stable and should be optional evidence/provider layers. They may fetch, store, or submit evidence, but local package verification remains the proof authority.
 
 Acceptance criteria:
 
-- Core proof modules do not import HTTP adapter.
-- HTTP adapter imports package primitives only if needed.
-- Docs clearly describe it as optional convenience transport.
+- Core proof modules do not import transport adapters.
+- No root HTTP client export exists.
+- Adapters return portable evidence for local verification, not trusted success verdicts.
 
 ## Workstream 7: Mainnet anchoring design only
 
@@ -261,10 +254,10 @@ KASPA_POF_ROULETTE_LOCAL_VERIFY=PASS
 3. Add `hashLedger()` with tests.
 4. Add `deriveEntropyHash()` with tests using explicit inline evidence.
 5. Add `verifyProofBundle()` for commitment/ledger/entropy consistency.
-6. Add roulette outcome deriver.
-7. Update roulette example to call local verification.
-8. Move legacy HTTP client under adapter namespace.
-9. Document claim levels and mainnet anchoring policy.
+6. Add app-defined outcome helper APIs and optional roulette example deriver outside package core assumptions.
+7. Document claim levels and mainnet anchoring policy.
+8. Add paid anchor payload/fee policy interfaces without hidden broadcasting.
+9. Create/adapt a separate new roulette consumer that calls local verification.
 10. Commit after each coherent milestone.
 
 ## Open questions

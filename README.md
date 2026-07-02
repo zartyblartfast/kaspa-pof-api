@@ -10,17 +10,19 @@ optional service/VPS       = convenience adapter, app persistence, hosting, opti
 roulette PoC              = example consumer, not the API's source of truth
 ```
 
-## Current scaffold
+## Current package state
 
-This initial commit deliberately contains only a migration basis:
+The package root is now runtime-first. It exports local proof-of-fairness primitives instead of a legacy HTTP client:
 
-- `src/http-client.mjs|cjs|d.ts` copied from `kaspa-toccata-api` as a legacy HTTP adapter reference.
-- `src/index.mjs` currently re-exports that adapter so the copied roulette example can load through the new package name.
-- `examples/roulette-poc/` copied from the current roulette PoC and adjusted to import `kaspa-pof-api` through an import map.
-- `references/` contains selected source-project docs for migration context.
-- `docs/` contains the new target architecture, package specification, next-phase plan, profile setup, and handover notes.
+- commitment hashing and verification;
+- canonical input ledger hashing and verification;
+- deterministic future-entropy hash derivation;
+- TN10/mainnet claim-level and Kaspa block-evidence validation;
+- generalized local proof verification through `verifyFairnessProof()` / `verifyProofBundle()` / `verifyProofOfFairness()`.
 
-Do not treat the legacy HTTP client as the desired final architecture. It is present so the new repo has a working baseline and a known comparison point while direct package/runtime/verifier APIs are extracted.
+The legacy `src/http-client.*` migration files have been removed from the package source and are not exported or published. Historical HTTP/server behavior remains available only through `references/` and the old `/root/kaspa-toccata-api` repo.
+
+`examples/roulette-poc/` is copied migration/reference material from the old app lineage and is not the package authority. The current deployed roulette app can continue using its old npm API and VPS node/server unchanged. A new roulette consumer should be cloned/adapted separately to use this package runtime model.
 
 ## Target package direction
 
@@ -37,7 +39,7 @@ The package should become general-purpose and app-agnostic:
 - claim-level handling
 - optional transaction anchor payload construction and fee estimation
 
-Roulette-specific UI and game rules belong under `examples/roulette-poc/`.
+Roulette-specific UI and game rules belong in a consumer app, not in the package core. A future roulette PoC may live under `examples/roulette-poc/` or a separate app/repo, but it must depend on the package rather than define it.
 
 ## Important boundary
 
@@ -54,7 +56,7 @@ The roulette app must depend on the package.
 
 1. Define portable proof bundle and claim-level docs.
 2. Extract pure verification primitives from the old server implementation into package modules.
-3. Make the roulette example verify proof locally through `kaspa-pof-api`, not by trusting a service response.
-4. Add generic app/outcome hooks so roulette is one example, not a hard-coded package assumption.
-5. Add Kaspa/TN10/mainnet evidence validators and no-spend future-entropy claim levels.
-6. Add optional transaction anchoring as a higher claim level, with explicit fee estimates before any mainnet write path.
+3. Add stronger app-defined outcome derivation helpers so roulette is one example, not a hard-coded package assumption.
+4. Add fuller transaction-anchor evidence validation and fee/spend policy interfaces for paid claim levels.
+5. Document the runtime API and publish-readiness checklist.
+6. Build a separate new roulette consumer that verifies proofs locally through `kaspa-pof-api`, not by trusting a service response.

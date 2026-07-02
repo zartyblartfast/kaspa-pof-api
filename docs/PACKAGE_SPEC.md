@@ -65,14 +65,14 @@ import {
   verifyCommitment,
   hashLedger,
   deriveEntropyHash,
-  verifyKaspaBlockEvidence,
-  deriveOutcome,
+  validateKaspaBlockEvidence,
+  verifyFairnessProof,
   verifyProofBundle,
-  createToccataApiClient
+  verifyProofOfFairness
 } from 'kaspa-pof-api';
 ```
 
-`createToccataApiClient` is legacy HTTP adapter compatibility and should not be the core proof authority.
+The root package API is local/runtime-first. It does not export a legacy HTTP client. Any future hosted transport must be a separate adapter that supplies or stores evidence; it must not become the proof authority.
 
 ## Data model draft
 
@@ -260,25 +260,23 @@ Examples:
 - Ledger entry canonicalization mismatch: fail.
 - Anchor tx missing for `*_tx_anchored`: fail.
 
-## HTTP adapter policy
+## Transport / adapter policy
 
-The HTTP adapter may remain for developers who want a hosted service, but it should be clearly separated:
+The package root must remain local/runtime-first. Hosted services may be useful for evidence fetching, storage, app persistence, auth, rate limits, or optional transaction submission, but they must not be required to independently verify a fairness proof.
 
-```js
-import { createToccataApiClient } from 'kaspa-pof-api/http-client';
-```
+The old HTTP client migration files have been removed from the package source and exports. If a future HTTP or RPC transport is added, it should be designed as a separate optional adapter after the runtime API is stable, and it should return portable evidence for the local verifier rather than a trusted success verdict.
 
-The root package should emphasize local proof primitives.
+## Roulette consumer policy
 
-## Roulette example policy
+The current deployed roulette app uses the old npm API and its own VPS node/server. It can remain unchanged while this package evolves.
 
-The roulette example should use the package like an external developer:
+A new roulette consumer should be cloned/adapted separately and should use the package like an external developer:
 
 ```js
 import { verifyProofBundle } from 'kaspa-pof-api';
 ```
 
-Roulette-specific code may include:
+Roulette-specific consumer code may include:
 
 - UI rendering;
 - chip placement;
@@ -305,4 +303,4 @@ Mainnet transaction anchoring must remain optional and should require:
 
 ## Compatibility note
 
-The current scaffold still exports the old `createToccataApiClient` HTTP client for migration continuity. This should be considered an adapter, not the final proof model.
+There is no root HTTP compatibility export in this package. `createToccataApiClient`, `ToccataApiClient`, and `ToccataApiError` are intentionally absent. Legacy HTTP behavior is reference material only in `/root/kaspa-toccata-api` and copied docs under `references/`.
