@@ -1,0 +1,52 @@
+{
+  "name": "kaspa-pof-api",
+  "version": "0.1.0-alpha.0",
+  "description": "General-purpose proof-of-fairness API package using Kaspa/TN10/mainnet evidence",
+  "type": "module",
+  "license": "MIT",
+  "author": "Kaspa PoF API contributors",
+  "homepage": "https://github.com/zartyblartfast/kaspa-pof-api#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zartyblartfast/kaspa-pof-api.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zartyblartfast/kaspa-pof-api/issues"
+  },
+  "keywords": [
+    "kaspa",
+    "proof-of-fairness",
+    "fairness",
+    "entropy",
+    "verification",
+    "tn10"
+  ],
+  "scripts": {
+    "smoke": "scripts/smoke.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./src/http-client.cjs",
+  "types": "./src/http-client.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/http-client.d.ts",
+      "import": "./src/index.mjs",
+      "require": "./src/http-client.cjs",
+      "default": "./src/index.mjs"
+    },
+    "./http-client": {
+      "types": "./src/http-client.d.ts",
+      "import": "./src/http-client.mjs",
+      "require": "./src/http-client.cjs",
+      "default": "./src/http-client.mjs"
+    }
+  },
+  "files": [
+    "src/",
+    "README.md",
+    "LICENSE",
+    "docs/"
+  ]
+}

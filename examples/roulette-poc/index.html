@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kaspa Toccata Roulette PoC</title>
+  <link rel="stylesheet" href="/examples/roulette-poc/styles.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "kaspa-pof-api": "/src/index.mjs"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header class="page-header">
+    <div>
+      <p class="eyebrow">Live TN10 proof-backed roulette</p>
+      <h1>Kaspa Toccata Roulette PoC</h1>
+      <p class="subhead">A roulette-first prototype: the top table is the game, and the flowchart below explains how the Kaspa Toccata API proves the result.</p>
+    </div>
+    <div id="serviceStatus" class="status-pill">Starting…</div>
+  </header>
+
+  <main class="page-layout">
+    <section class="section-card game-section" aria-labelledby="roulette-game-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="roulette-game-title">Roulette Game</h2>
+          <p class="note">Click the table to place chips. Reset creates a new API round and commits hidden result material before chips are accepted.</p>
+        </div>
+        <div class="round-summary" aria-live="polite">
+          <span class="label">Round</span>
+          <strong id="roundId">not started</strong>
+          <span id="roundStage" class="stage-pill">waiting</span>
+        </div>
+      </div>
+
+      <div id="liveProofStatusRoot" class="live-proof-status" aria-live="polite"></div>
+      <div id="operationStatus" class="operation-status" aria-live="polite"></div>
+
+      <div class="game-grid">
+        <div class="roulette-shell">
+          <div id="tableHost" class="roulette-svg-host" aria-label="Clickable roulette table"></div>
+        </div>
+        <aside class="game-side-panel">
+          <div class="result-card">
+            <span class="label">Result</span>
+            <strong id="resultValue">hidden</strong>
+            <p id="resultNote">The browser does not choose the winning number.</p>
+          </div>
+
+          <label class="field chip-field">
+            <span>Chip amount</span>
+            <input id="stake" type="number" min="1" step="1" value="5">
+          </label>
+          <div class="chip-presets" aria-label="Quick chip amounts">
+            <button type="button" class="chip-preset" data-chip-amount="1">1</button>
+            <button type="button" class="chip-preset" data-chip-amount="5">5</button>
+            <button type="button" class="chip-preset" data-chip-amount="25">25</button>
+            <button type="button" class="chip-preset" data-chip-amount="100">100</button>
+          </div>
+
+          <div class="button-row primary-controls">
+            <button id="spinButton" type="button">Spin Wheel</button>
+            <button id="resetButton" type="button">Reset Round</button>
+          </div>
+
+          <div class="ledger-card">
+            <div class="ledger-heading">
+              <span class="label">Selected chips</span>
+              <div class="ledger-actions">
+                <button id="undoChipButton" type="button" class="small-button">Undo</button>
+                <button id="clearChipsButton" type="button" class="small-button">Clear</button>
+              </div>
+            </div>
+            <ul id="selectionList" class="selection-list"></ul>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section-card proof-section" aria-labelledby="proof-title">
+      <div class="section-heading">
+        <div>
+          <h2 id="proof-title">Proof of Fairness</h2>
+          <p class="note">Follow the two-column flow. Left: the roulette round. Right: the Kaspa Toccata proof evidence returned by the API.</p>
+        </div>
+        <div class="claim-card">
+          <span class="label">Claim level</span>
+          <strong id="claimLevel">pending</strong>
+        </div>
+      </div>
+
+      <details class="flowchart-details">
+        <summary>
+          <span>Show full proof flowchart</span>
+          <small>Detailed API evidence and row-by-row proof mapping</small>
+        </summary>
+        <div id="flowchartRoot" class="flowchart-root" aria-live="polite"></div>
+      </details>
+    </section>
+  </main>
+
+  <script src="/examples/roulette-poc/roulette-table-layout.js"></script>
+  <script src="/examples/roulette-poc/roulette-table-renderer.js"></script>
+  <script type="module" src="/examples/roulette-poc/app.js"></script>
+</body>
+</html>

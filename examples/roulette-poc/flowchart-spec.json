@@ -1,0 +1,401 @@
+{
+  "flowchartVersion": 3,
+  "id": "roulette-poc-live-api-flow-v1",
+  "title": "Roulette proof-of-fairness flow",
+  "displayMode": "live_api_summary",
+  "layout": {
+    "rowCount": 8,
+    "rowMinHeightPx": 118,
+    "columnGapPx": 108,
+    "edgeLabelFontSize": 11,
+    "edgeLabelBackground": true
+  },
+  "lanes": [
+    {
+      "id": "roulette_round",
+      "title": "Roulette Round",
+      "subtitle": "What the player sees and does.",
+      "theme": "round"
+    },
+    {
+      "id": "toccata_proof",
+      "title": "Kaspa Toccata Proof of Fairness",
+      "subtitle": "What the API records, fetches, and verifies.",
+      "theme": "proof"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "round_ready",
+      "lane": "roulette_round",
+      "row": 1,
+      "stage": "ready",
+      "title": "New round ready",
+      "badge": "Ready",
+      "summary": "A fresh round is prepared before chips are accepted.",
+      "detailsBinding": "roundSummary",
+      "compactLabel": "Ready",
+      "compactHelp": "A new API round ID is ready. Every later commitment, ledger, entropy, reveal, and verification step refers back to this same round.",
+      "compactLinks": [
+        {
+          "label": "round lifecycle",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/BASIC_WEB_DEMO_BUTTONS.md#section-2-create-generic-round"
+        }
+      ]
+    },
+    {
+      "id": "proof_create",
+      "lane": "toccata_proof",
+      "row": 1,
+      "stage": "ready",
+      "title": "API creates round",
+      "badge": "API",
+      "summaryBinding": "roundId",
+      "waitingSummary": "Waiting for reset.",
+      "detailsBinding": "apiLog.createRound",
+      "compactLabel": "Create",
+      "compactHelp": "The Toccata API creates the stable round record before anything is committed or revealed. This gives the proof a single ID to audit later.",
+      "compactLinks": [
+        {
+          "label": "round lifecycle",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/BASIC_WEB_DEMO_BUTTONS.md#section-2-create-generic-round"
+        }
+      ]
+    },
+    {
+      "id": "round_commit_gate",
+      "lane": "roulette_round",
+      "row": 2,
+      "stage": "ready",
+      "title": "Chips enabled after commit",
+      "badge": "Gate",
+      "summary": "The table accepts chip placement only after the API commitment exists.",
+      "detailsBinding": "roundCommitmentGate",
+      "compactLabel": "Gate",
+      "compactHelp": "The table only accepts chips after the API has a commitment. That prevents changing the hidden server material after seeing player bets.",
+      "compactLinks": [
+        {
+          "label": "commitment step",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/BASIC_WEB_DEMO_BUTTONS.md#section-3-commit-hidden-server-seed"
+        }
+      ]
+    },
+    {
+      "id": "proof_commit",
+      "lane": "toccata_proof",
+      "row": 2,
+      "stage": "ready",
+      "title": "Commitment recorded",
+      "badge": "Commit",
+      "summaryBinding": "commitment",
+      "waitingSummary": "Waiting for commitment.",
+      "detailsBinding": "apiLog.commit",
+      "compactLabel": "Commit",
+      "compactHelp": "The API stores a hash commitment to the hidden server seed before chips are accepted. Later reveal proves the seed was not changed mid-round.",
+      "compactLinks": [
+        {
+          "label": "commitment step",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/BASIC_WEB_DEMO_BUTTONS.md#section-3-commit-hidden-server-seed"
+        }
+      ]
+    },
+    {
+      "id": "round_chips",
+      "lane": "roulette_round",
+      "row": 3,
+      "stage": "chips",
+      "title": "Player places chips",
+      "badge": "Player action",
+      "summaryBinding": "chipSelections",
+      "detailsBinding": "selections",
+      "compactLabel": "Chips",
+      "compactHelp": "The player chooses roulette bets. These choices are visible game state; the browser does not compute the proof or choose the result."
+    },
+    {
+      "id": "round_spin",
+      "lane": "roulette_round",
+      "row": 4,
+      "stage": "spinning",
+      "title": "Spin Wheel",
+      "badge": "Player action",
+      "summary": "The visitor starts the wheel. The browser animation does not choose the result.",
+      "detailsBinding": "spinAction",
+      "compactLabel": "Spin",
+      "compactHelp": "Spin starts the animation and submits the current bets to the API. The animation is presentation only; the API-derived proof drives the final result."
+    },
+    {
+      "id": "proof_ledger",
+      "lane": "toccata_proof",
+      "row": 4,
+      "stage": "closed",
+      "title": "Bet ledger captured",
+      "badge": "Ledger",
+      "summaryBinding": "ledgerHash",
+      "waitingSummary": "Submitted when Spin Wheel is pressed.",
+      "detailsBinding": "apiLog.betLedger",
+      "compactLabel": "Ledger",
+      "compactHelp": "The API records the accepted bets as a ledger hash before close. Verification can replay this hash so the result is tied to the exact bet state.",
+      "compactLinks": [
+        {
+          "label": "ledger step",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/BASIC_WEB_DEMO_BUTTONS.md#section-4-betinput-ledger"
+        }
+      ]
+    },
+    {
+      "id": "round_closed",
+      "lane": "roulette_round",
+      "row": 5,
+      "stage": "closed",
+      "title": "Bets closed",
+      "badge": "Closed",
+      "summary": "No more table selections are accepted once the round is closed.",
+      "detailsBinding": "apiLog.close",
+      "compactLabel": "Closed",
+      "compactHelp": "Betting closes before entropy is fetched. From this point, neither the player nor server should be able to change inputs for this round."
+    },
+    {
+      "id": "proof_close",
+      "lane": "toccata_proof",
+      "row": 5,
+      "stage": "closed",
+      "title": "Entropy target fixed",
+      "badge": "Close",
+      "summaryBinding": "entropyTarget",
+      "waitingSummary": "Waiting for close.",
+      "detailsBinding": "apiLog.close",
+      "compactLabel": "Close",
+      "compactHelp": "Close records the final ledger and chooses a future TN10 blue-score point. Because it is in the future, the block hash entropy is not known yet.",
+      "compactLinks": [
+        {
+          "label": "future entropy decision",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/DECISIONS.md#0011--future-entropy-uses-live-tn10-blue-score-target-evidence"
+        },
+        {
+          "label": "close step",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/BASIC_WEB_DEMO_BUTTONS.md#section-5-close-round-and-fix-future-tn10-entropy-target"
+        }
+      ]
+    },
+    {
+      "id": "round_waiting",
+      "lane": "roulette_round",
+      "row": 6,
+      "stage": "entropy",
+      "title": "Wheel/result pending",
+      "badge": "Waiting",
+      "summary": "The player still sees a pending result while the API waits for live TN10 entropy from the selected future blue-score point.",
+      "detailsBinding": "entropy",
+      "compactLabel": "Waiting",
+      "compactHelp": "Waiting means the UI is waiting on GET /entropy. The API watches TN10 until the chosen future blue-score has live block evidence, then uses that block as entropy.",
+      "compactLinks": [
+        {
+          "label": "entropy step",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/BASIC_WEB_DEMO_BUTTONS.md#section-6-fetch-live-tn10-entropy"
+        }
+      ]
+    },
+    {
+      "id": "proof_entropy",
+      "lane": "toccata_proof",
+      "row": 6,
+      "stage": "entropy",
+      "title": "Live TN10 entropy fetched",
+      "badge": "TN10",
+      "summaryBinding": "entropyHash",
+      "waitingSummary": "Waiting for live TN10 entropy evidence.",
+      "detailsBinding": "apiLog.entropy",
+      "compactLabel": "Entropy",
+      "compactHelp": "GET /entropy fetches the live TN10 block at or after the chosen future blue-score and derives an entropy hash. This external entropy helps prevent either side from picking the result after bets close.",
+      "compactLinks": [
+        {
+          "label": "entropy step",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/BASIC_WEB_DEMO_BUTTONS.md#section-6-fetch-live-tn10-entropy"
+        },
+        {
+          "label": "future entropy design",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/DECISIONS.md#0011--future-entropy-uses-live-tn10-blue-score-target-evidence"
+        }
+      ]
+    },
+    {
+      "id": "round_result",
+      "lane": "roulette_round",
+      "row": 7,
+      "stage": "revealed",
+      "title": "Result displayed",
+      "badge": "Displayed",
+      "summaryBinding": "result",
+      "waitingSummary": "Hidden until API reveal.",
+      "detailsBinding": "apiLog.reveal",
+      "compactLabel": "Result",
+      "compactHelp": "The result is displayed only after reveal. It is derived from the committed server seed, client seed, bet ledger, and TN10 entropy\u2014not from browser randomness."
+    },
+    {
+      "id": "proof_reveal",
+      "lane": "toccata_proof",
+      "row": 7,
+      "stage": "revealed",
+      "title": "API reveals result",
+      "badge": "Reveal",
+      "summaryBinding": "revealSummary",
+      "waitingSummary": "Waiting for reveal.",
+      "detailsBinding": "apiLog.reveal",
+      "compactLabel": "Reveal",
+      "compactHelp": "Reveal discloses the server seed and checks it matches the earlier commitment, then derives the roulette outcome using the live entropy evidence.",
+      "compactLinks": [
+        {
+          "label": "reveal step",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/BASIC_WEB_DEMO_BUTTONS.md#section-7-reveal-and-calculate-result"
+        }
+      ]
+    },
+    {
+      "id": "round_verified",
+      "lane": "roulette_round",
+      "row": 8,
+      "stage": "verified",
+      "title": "Verified proof available",
+      "badge": "Verified",
+      "summaryBinding": "verificationForPlayer",
+      "waitingSummary": "Waiting for proof verification.",
+      "detailsBinding": "verification",
+      "compactLabel": "Verified",
+      "compactHelp": "Verified means the player-visible result has passed API proof replay for this claim level. It is a proof status, not just a success animation."
+    },
+    {
+      "id": "proof_verify",
+      "lane": "toccata_proof",
+      "row": 8,
+      "stage": "verified",
+      "title": "Proof verifies commitment and result",
+      "badge": "Verify",
+      "summaryBinding": "verification",
+      "waitingSummary": "Waiting for proof replay.",
+      "detailsBinding": "proofVerificationBundle",
+      "compactLabel": "Verify",
+      "compactHelp": "Verify replays the proof: commitment match, ledger hash, TN10 entropy derivation, reveal, result derivation, and any transaction evidence that is present.",
+      "compactLinks": [
+        {
+          "label": "proof verification",
+          "href": "https://github.com/zartyblartfast/kaspa-toccata-api/blob/main/docs/BASIC_WEB_DEMO_BUTTONS.md#section-8-proof-verification-and-tn10-tx-evidence"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge_create",
+      "from": "round_ready",
+      "to": "proof_create",
+      "label": "creates",
+      "route": "horizontal",
+      "labelOffset": {
+        "x": 0,
+        "y": -9
+      }
+    },
+    {
+      "id": "edge_commit_gate",
+      "from": "proof_commit",
+      "to": "round_commit_gate",
+      "label": "enables chip placement",
+      "route": "horizontal",
+      "labelOffset": {
+        "x": 0,
+        "y": -9
+      }
+    },
+    {
+      "id": "edge_spin_ledger",
+      "from": "round_spin",
+      "to": "proof_ledger",
+      "label": "submits ledger",
+      "route": "horizontal",
+      "labelOffset": {
+        "x": 0,
+        "y": -9
+      }
+    },
+    {
+      "id": "edge_close",
+      "from": "round_closed",
+      "to": "proof_close",
+      "label": "fixes target",
+      "route": "horizontal",
+      "labelOffset": {
+        "x": 0,
+        "y": -9
+      }
+    },
+    {
+      "id": "edge_entropy",
+      "from": "proof_entropy",
+      "to": "round_waiting",
+      "label": "supplies entropy",
+      "route": "horizontal",
+      "labelOffset": {
+        "x": 0,
+        "y": -9
+      }
+    },
+    {
+      "id": "edge_reveal",
+      "from": "proof_reveal",
+      "to": "round_result",
+      "label": "supplies result",
+      "route": "horizontal",
+      "labelOffset": {
+        "x": 0,
+        "y": -9
+      }
+    },
+    {
+      "id": "edge_verify",
+      "from": "round_verified",
+      "to": "proof_verify",
+      "label": "verifies",
+      "route": "horizontal",
+      "labelOffset": {
+        "x": 0,
+        "y": -9
+      }
+    }
+  ],
+  "compact": {
+    "title": "Live proof status",
+    "subtitle": "Compact two-row view of the same API-backed flow while the wheel moves through the round.",
+    "rows": [
+      {
+        "id": "compact_roulette",
+        "label": "Roulette",
+        "lane": "roulette_round",
+        "nodeIds": [
+          "round_ready",
+          "round_commit_gate",
+          "round_chips",
+          "round_spin",
+          "round_closed",
+          "round_waiting",
+          "round_result",
+          "round_verified"
+        ]
+      },
+      {
+        "id": "compact_toccata",
+        "label": "Toccata",
+        "lane": "toccata_proof",
+        "nodeIds": [
+          "proof_create",
+          "proof_commit",
+          null,
+          "proof_ledger",
+          "proof_close",
+          "proof_entropy",
+          "proof_reveal",
+          "proof_verify"
+        ]
+      }
+    ]
+  }
+}

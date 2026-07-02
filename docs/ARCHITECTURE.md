@@ -1,0 +1,127 @@
+# Architecture Direction
+
+## Decision
+
+Use `kaspa-pof-api` as a fresh monorepo for both:
+
+1. the general-purpose npm proof-of-fairness package; and
+2. a roulette PoC/example app that consumes that package.
+
+The package is the product/API foundation. The roulette app is an example consumer.
+
+## Why fresh repo
+
+The prior `kaspa-toccata-api` repo proved useful live TN10 behavior but centered the implementation around a Node HTTP service. That made the npm package mostly an HTTP client and created a trust problem for a proof-of-fairness architecture.
+
+The new repo should avoid inheriting that architecture as the default.
+
+## Target trust model
+
+The fairness verifier/runtime should live in the npm package wherever practical.
+
+A service may provide data or convenience, but the service should not be the proof authority.
+
+```text
+browser/app/server gets proof evidence
+        ↓
+kaspa-pof-api verifies proof locally
+        ↓
+app displays claim level and verification result
+```
+
+## Layers
+
+### Core package layer
+
+Reusable, app-agnostic modules:
+
+- commitments
+- generic input ledger hashes
+- future entropy targets
+- Kaspa/TN10/mainnet evidence schemas
+- entropy derivation
+- proof bundle construction
+- proof verification
+- claim-level validation
+- outcome derivation hooks
+- optional tx anchor payload builders
+- optional fee estimation helpers
+
+### Example app layer
+
+`examples/roulette-poc/` should contain roulette-specific UI and outcome mapping:
+
+- table rendering
+- chip placement
+- roulette result display
+- proof status presentation
+
+It should import `kaspa-pof-api` like an external app developer would.
+
+### Optional service layer
+
+A VPS/Node/Python/Vercel service can remain useful for:
+
+- hosting demos
+- storing proof bundles
+- persistence/session coordination
+- rate limits/auth/admin
+- optional transaction submission
+- optional HTTP adapter for developers who prefer hosted APIs
+
+But it should not be required to independently verify fairness.
+
+## Claim levels to design
+
+Initial claim levels should distinguish cost/trust tradeoffs clearly:
+
+```text
+local_bundle_only
+  commitment/ledger/reveal replay only; no chain evidence.
+
+tn10_future_entropy
+  no-spend TN10 future block entropy; read-only chain evidence.
+
+mainnet_future_entropy
+  no-spend Kaspa mainnet future block entropy; read-only chain evidence.
+
+tn10_tx_anchored
+  commit/close/reveal or compact anchors written to TN10; spends testnet funds.
+
+mainnet_tx_anchored
+  optional paid mainnet anchoring; spends real KAS; must be explicitly enabled and fee-capped.
+```
+
+## Mainnet cost policy
+
+Mainnet should default to read-only future entropy and local verification.
+
+Transaction anchoring should be optional and should expose before-submit estimates:
+
+```json
+{
+  "network": "kaspa-mainnet",
+  "transactionCount": 3,
+  "estimatedFeeSompi": "...",
+  "estimatedFeeKas": "...",
+  "payloadBytes": 0,
+  "transactionMass": 0,
+  "feeRate": 0
+}
+```
+
+No mainnet write path should exist without explicit gates, fee caps, and clear user/operator acknowledgement.
+
+## Migration principle
+
+Do not copy the old `src/server.cjs` wholesale.
+
+Extract or rewrite pure functions first:
+
+1. hash commitments;
+2. hash generic ledgers;
+3. derive entropy from chain evidence;
+4. derive/replay outcomes;
+5. verify proof bundles.
+
+Then wrap those functions with optional adapters.
