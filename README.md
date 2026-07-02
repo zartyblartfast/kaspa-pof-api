@@ -26,7 +26,7 @@ The package root is now runtime-first. It exports local proof-of-fairness primit
 
 The legacy `src/http-client.*` migration files have been removed from the package source and are not exported or published. Historical HTTP/server behavior remains available only through `references/` and the old `/root/kaspa-toccata-api` repo.
 
-See `docs/API.md` for runtime API examples, including `tn10_proof_root_anchored` proof-root verification.
+See `docs/API.md` for runtime API examples, including `tn10_proof_root_anchored` proof-root verification. See `docs/PUBLISH_READINESS.md` for package contents, npm registry/auth observations, and pre-publish decision points.
 
 `examples/roulette-poc/` is copied migration/reference material from the old app lineage and is not the package authority. The current deployed roulette app can continue using its old npm API and VPS node/server unchanged. A new roulette consumer should be cloned/adapted separately to use this package runtime model.
 

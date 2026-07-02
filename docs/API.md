@@ -45,6 +45,8 @@ The current package distinguishes these claim levels:
 
 ## Future-entropy proof example
 
+A runnable version of this example is available at `docs/examples/future-entropy-proof.mjs`.
+
 ```js
 const serverSeed = 'server secret fixed before the round closes';
 const clientSeed = 'client visible input';
@@ -92,6 +94,8 @@ if (!result.ok) {
 ## Proof-root-only TN10 anchor example
 
 Use `tn10_proof_root_anchored` when one TN10 transaction should bind the full proof bundle through a canonical proof root.
+
+A runnable live-evidence verifier is available at `docs/examples/proof-root-anchored-live.mjs`.
 
 ```js
 const proof = {
@@ -176,3 +180,7 @@ The reference files contain public evidence only. They do not contain private ke
 `submitTn10AnchorTransaction()` is TN10-only and guarded. It requires explicit broadcast enablement, the acknowledgement phrase, a TN10 private key, and a fee cap checked against the created transaction summary before signing/submission.
 
 No mainnet transaction submission helper exists in this package. Mainnet paid anchoring remains future work and must stay explicit, fee-estimated, fee-capped, and acknowledged.
+
+## Publish readiness
+
+See `docs/PUBLISH_READINESS.md` for the current package contents, npm registry/auth observations, and pre-publish decision points.

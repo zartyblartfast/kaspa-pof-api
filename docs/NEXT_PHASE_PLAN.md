@@ -306,6 +306,12 @@ KASPA_POF_ROULETTE_LOCAL_VERIFY=PASS
 
 ## Open questions
 
+- Near-term active discussion list after the proof-root/API-docs pass:
+  1. Decide publish version (`0.1.0-alpha.0` or bump first).
+  2. Decide optional chain evidence provider/adapters.
+  3. Build/adapt a separate roulette consumer against this package runtime.
+- Mainnet paid submission is parked for a later stage.
+
 - Should browser-local chain evidence fetching be in this phase, or should the service continue to supply block evidence while the package validates it?
 - Should roulette outcome derivation be part of the core package or an example plugin?
 - What finality depth should `mainnet_future_entropy` require?

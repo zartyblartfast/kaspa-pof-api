@@ -1,6 +1,6 @@
 {
   "name": "kaspa-pof-api",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "General-purpose proof-of-fairness API package using Kaspa/TN10/mainnet evidence",
   "type": "module",
   "license": "MIT",
@@ -40,6 +40,9 @@
   },
   "files": [
     "src/",
+    "references/live-tn10-proof-root-anchor-evidence.json",
+    "references/live-tn10-proof-root-anchored-evidence.json",
+    "references/live-tn10-proof-root-anchored-proof.json",
     "README.md",
     "LICENSE",
     "docs/"

@@ -11,6 +11,9 @@ for file in \
   package.json \
   README.md \
   docs/API.md \
+  docs/PUBLISH_READINESS.md \
+  docs/examples/future-entropy-proof.mjs \
+  docs/examples/proof-root-anchored-live.mjs \
   docs/ARCHITECTURE.md \
   docs/HANDOVER_PROMPT.md \
   src/commitment.mjs \
@@ -86,6 +89,8 @@ node --check src/index.cjs >/dev/null
 node --check examples/roulette-poc/app.js >/dev/null
 node --check examples/roulette-poc/roulette-table-layout.js >/dev/null
 node --check examples/roulette-poc/roulette-table-renderer.js >/dev/null
+node --check docs/examples/future-entropy-proof.mjs >/dev/null
+node --check docs/examples/proof-root-anchored-live.mjs >/dev/null
 pass KASPA_POF_ROULETTE_JS_SYNTAX
 
 node --input-type=module - <<'NODE'
@@ -261,6 +266,10 @@ const result = verifyFairnessProof(proof);
 if (!result.ok) throw new Error(`live proof-root anchored proof failed: ${JSON.stringify(result.errors)}`);
 NODE
 pass KASPA_POF_PROOF_ROOT_ANCHORED
+
+node docs/examples/future-entropy-proof.mjs >/dev/null
+node docs/examples/proof-root-anchored-live.mjs >/dev/null
+pass KASPA_POF_PUBLIC_EXAMPLES
 
 node - <<'NODE'
 const fs = require('fs');
