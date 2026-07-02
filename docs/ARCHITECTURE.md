@@ -4,7 +4,7 @@
 
 Use `kaspa-pof-api` as the general-purpose npm proof-of-fairness package foundation.
 
-Roulette is an example consumer, not the package source of truth. The current deployed roulette app remains on the old npm API plus its own VPS node/server. A new roulette consumer should be cloned/adapted separately to use this package runtime model.
+Roulette is an example consumer, not the package source of truth. The current deployed roulette app remains on the old npm API plus its own VPS node/server. The in-repo `examples/roulette-poc/` directory now contains the new package-runtime roulette consumer with a roulette-specific Node server for round/evidence plumbing and browser-side package verification.
 
 ## Why fresh repo
 
@@ -50,14 +50,16 @@ Reusable, app-agnostic modules:
 
 ### Consumer app layer
 
-A roulette consumer may contain roulette-specific UI and outcome mapping:
+A roulette consumer may contain roulette-specific server orchestration, UI, and outcome mapping:
 
+- round/session orchestration and hidden server-seed custody
+- live TN10 evidence fetching and proof-bundle assembly
 - table rendering
 - chip placement
 - roulette result display
 - proof status presentation
 
-It should import `kaspa-pof-api` like an external app developer would. The package must not depend on roulette-specific files or assumptions.
+The browser side should import `kaspa-pof-api` like an external app developer would and verify returned proof bundles locally. The package must not depend on roulette-specific files or assumptions.
 
 ### Optional service layer
 
@@ -70,7 +72,7 @@ A VPS/Node/Python/Vercel service can remain useful for:
 - optional transaction submission
 - optional HTTP adapter for developers who prefer hosted APIs
 
-But it should not be required to independently verify fairness.
+But it should not be required to independently verify fairness. In the roulette PoC, the service creates rounds and supplies real TN10 evidence, but the browser calls the package verifier and displays that result.
 
 The package may expose explicit TN10 transaction-anchor submission helpers because TN10 spends testnet funds and is useful for proof-of-fairness anchoring. That path must remain opt-in and fail closed unless the caller supplies a TN10 private key, explicit broadcast enablement, the acknowledgement phrase, and a fee cap that covers the created transaction summary. No mainnet submitter exists in the package.
 

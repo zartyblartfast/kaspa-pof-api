@@ -49,11 +49,14 @@ for file in \
   src/proof/verify.mjs \
   src/proof/verify.cjs \
   src/proof/verify.d.ts \
+  src/browser.mjs \
   src/index.mjs \
   src/index.cjs \
   src/index.d.ts \
+  examples/roulette-poc/README.md \
   examples/roulette-poc/index.html \
   examples/roulette-poc/app.js \
+  examples/roulette-poc/server.cjs \
   examples/roulette-poc/styles.css \
   examples/roulette-poc/flowchart-spec.json \
   examples/roulette-poc/roulette-table-layout.js \
@@ -73,6 +76,7 @@ node --check src/networks/claim-levels.mjs >/dev/null
 node --check src/networks/kaspa-evidence.mjs >/dev/null
 node --check src/proof/root.mjs >/dev/null
 node --check src/proof/verify.mjs >/dev/null
+node --check src/browser.mjs >/dev/null
 node --check src/index.mjs >/dev/null
 node --check src/commitment.cjs >/dev/null
 node --check src/ledger.cjs >/dev/null
@@ -87,6 +91,7 @@ node --check src/proof/root.cjs >/dev/null
 node --check src/proof/verify.cjs >/dev/null
 node --check src/index.cjs >/dev/null
 node --check examples/roulette-poc/app.js >/dev/null
+node --check examples/roulette-poc/server.cjs >/dev/null
 node --check examples/roulette-poc/roulette-table-layout.js >/dev/null
 node --check examples/roulette-poc/roulette-table-renderer.js >/dev/null
 node --check docs/examples/future-entropy-proof.mjs >/dev/null
@@ -280,11 +285,17 @@ if (pkg.exports['./http-client']) throw new Error('legacy HTTP client export mus
 NODE
 pass KASPA_POF_PACKAGE_METADATA
 
-grep -q '"kaspa-pof-api": "/src/index.mjs"' examples/roulette-poc/index.html || fail KASPA_POF_IMPORT_MAP
+grep -Eq '"kaspa-pof-api": "/src/(index|browser)\.mjs(\?browser-runtime=1)?"' examples/roulette-poc/index.html || fail KASPA_POF_IMPORT_MAP
 ! grep -q 'kaspa-toccata-api' examples/roulette-poc/index.html || fail KASPA_POF_NO_OLD_IMPORT_MAP
 ! grep -q "from 'kaspa-toccata-api'" examples/roulette-poc/app.js || fail KASPA_POF_NO_OLD_APP_IMPORT
 grep -q "from 'kaspa-pof-api'" examples/roulette-poc/app.js || fail KASPA_POF_APP_IMPORT
+! grep -R "createToccataApiClient\|apiClient\.\|verifyProof(\|getProof(\|/v1/\|Kaspa Toccata API\|returned by the API" examples/roulette-poc >/dev/null || fail KASPA_POF_ROULETTE_NO_HTTP_PROOF_AUTHORITY
+grep -q "verifyFairnessProof" examples/roulette-poc/app.js || fail KASPA_POF_ROULETTE_LOCAL_VERIFY
+grep -q "tn10_future_entropy" examples/roulette-poc/app.js || fail KASPA_POF_ROULETTE_TN10_CLAIM_LEVEL
+grep -q "tn10_future_entropy" examples/roulette-poc/server.cjs || fail KASPA_POF_ROULETTE_SERVER_TN10_CLAIM_LEVEL
+! grep -R "local_bundle_only\|browser-local-bundle-entropy\|deriveLocalEntropy" examples/roulette-poc >/dev/null || fail KASPA_POF_ROULETTE_NO_LOCAL_ONLY_PROOF
 pass KASPA_POF_ROULETTE_IMPORT_WIRING
+pass KASPA_POF_ROULETTE_TN10_VERIFY
 
 ! grep -R "sample-round\|toccata-fairness-proof\|proof\.json\|round\.json" examples/roulette-poc >/dev/null || fail KASPA_POF_NO_STATIC_PROOF_FIXTURES
 ! grep -Ri "mock" examples/roulette-poc >/dev/null || fail KASPA_POF_NO_MOCK_PATTERNS

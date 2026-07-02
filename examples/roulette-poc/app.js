@@ -1,11 +1,16 @@
-import { createToccataApiClient } from 'kaspa-pof-api';
+import {
+  deriveOutcome,
+  verifyFairnessProof,
+} from 'kaspa-pof-api';
 
 (() => {
-  const apiClient = createToccataApiClient({ baseUrl: '' });
   const tableLayout = window.createRouletteTableLayout();
   const tableRenderer = window.RouletteTableRenderer;
-
   const stageOrder = ['boot', 'ready', 'chips', 'spinning', 'closed', 'entropy', 'revealed', 'verified'];
+  const ROULETTE_CLAIM_LEVEL = 'tn10_future_entropy';
+  const rouletteOutcomeDerivers = {
+    'roulette-poc:number-v1': deriveRouletteOutcome,
+  };
 
   const state = {
     stage: 'boot',
@@ -16,14 +21,13 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     entropy: null,
     selections: [],
     nextSelectionId: 1,
-    serverSeed: '',
     clientSeed: '',
     busy: false,
-    apiLog: {},
+    trace: {},
     flowchartSpec: null,
     operation: {
-      label: 'Preparing live API connection',
-      detail: 'Reset will check health, capabilities, live TN10 network status, then commit the round before chips open.',
+      label: 'Preparing TN10 proof runtime',
+      detail: 'Reset asks the roulette PoC server to create a committed TN10 future-entropy round. Verification happens in this browser through kaspa-pof-api.',
       tone: 'idle',
     },
   };
@@ -82,8 +86,8 @@ import { createToccataApiClient } from 'kaspa-pof-api';
   async function resetRound() {
     if (state.busy) return;
     state.busy = true;
-    setOperation('Starting new committed round', 'Reset is clearing local chip selections, then the app will call the live API. No substitute path is used.', 'busy');
-    setStatus('Creating committed API round…', null);
+    setOperation('Starting committed TN10 round', 'Requesting a roulette-specific server round. The server owns hidden seed material; the browser receives only the commitment until proof reveal.', 'busy');
+    setStatus('Creating TN10 future-entropy round…', null);
     state.stage = 'boot';
     state.roundId = null;
     state.round = null;
@@ -92,27 +96,18 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     state.entropy = null;
     state.selections = [];
     state.nextSelectionId = 1;
-    state.serverSeed = `server-${randomHex(16)}`;
-    state.clientSeed = `client-${randomHex(16)}`;
-    state.apiLog = {};
+    state.clientSeed = `client-${randomHex(32)}`;
+    state.trace = {};
     renderAll();
 
     try {
-      await rememberStep('health', 'Checking API health', 'Quick local service check before a live round starts.', apiClient.health());
-      await rememberStep('capabilities', 'Reading capability flags', 'Confirming signing/broadcast remain disabled by default before the game opens.', apiClient.capabilities());
-      await rememberStep('networkStatus', 'Checking live TN10 network status', 'This can be the slow step on weak networks because the API is contacting TN10. Chips open only after this live status check completes.', apiClient.networkStatus());
-      const created = await rememberStep('createRound', 'Creating API round', 'Allocating the round ID that all later proof evidence will reference.', apiClient.createRound({
-        game: 'roulette',
-        tableId: 'roulette-poc',
-        metadata: { app: 'roulette-poc', tableVariant: tableLayout.roulette_variant },
-      }));
+      await rememberStep('health', 'Checking roulette PoC server', 'The server supplies round state and TN10 evidence, not a trusted proof verdict.', fetchJson('/examples/roulette-poc/health'));
+      const created = await rememberStep('createRound', 'Creating committed round', 'The server commits hidden seed material before chip placement opens.', fetchJson('/examples/roulette-poc/rounds', { method: 'POST' }));
       state.round = created.round;
       state.roundId = created.round.roundId;
-      const committed = await rememberStep('commit', 'Recording pre-bet commitment', 'The API commits hidden server material before chip placement is enabled.', apiClient.commitRound(state.roundId, { serverSeed: state.serverSeed }));
-      state.round = committed.round;
       state.stage = 'ready';
-      setOperation('Chips open', 'Commitment is recorded. Table clicks are now local chip placement until Spin Wheel submits the ledger.', 'pass');
-      setStatus('Committed round ready for chips', true);
+      setOperation('Chips open', 'Commitment is fixed. Chip placement is local UI state until Spin Wheel locks and submits the ledger.', 'pass');
+      setStatus('Committed TN10 round ready for chips', true);
     } catch (error) {
       state.stage = 'boot';
       rememberError('resetError', error);
@@ -128,52 +123,76 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     if (state.busy || !state.roundId || !canPlaceChips()) return;
     state.busy = true;
     state.stage = 'spinning';
-    setOperation('Spin started', 'Submitting the visible chip ledger, then closing the round and waiting for live TN10 entropy. The browser will not choose the result.', 'busy');
-    setStatus('Submitting chip ledger and closing round…', null);
+    setOperation('Spin started', 'Submitting the locked chip ledger, then waiting for real TN10 future block evidence. The browser will verify the returned proof bundle itself.', 'busy');
+    setStatus('Waiting for TN10-backed proof bundle…', null);
     renderAll();
 
     try {
-      const ledgerPayload = await rememberStep('betLedger', 'Submitting chip ledger', 'The selected chips are sent to the API as the round ledger before close.', apiClient.updateBetLedger(state.roundId, {
-        bets: state.selections.map((entry) => ({
-          playerId: 'roulette-poc-player',
-          selection: `${entry.betType}:${entry.label}`,
-          amount: entry.amount,
-        })),
+      const bets = state.selections.map((entry) => ({
+        playerId: 'roulette-poc-player',
+        selection: `${entry.betType}:${entry.label}`,
+        amount: entry.amount,
       }));
-      state.round = ledgerPayload.round;
-
-      const closed = await rememberStep('close', 'Closing round and fixing entropy target', 'Close locks the ledger and chooses a future TN10 blue-score before the entropy block hash is known. This live API step may take a moment.', apiClient.closeRound(state.roundId, {
-        clientSeed: state.clientSeed,
-        entropyMode: 'live_tn10_future',
-      }));
-      state.round = closed.round;
+      state.trace.betLedger = { entries: bets };
       state.stage = 'closed';
       renderAll();
 
-      const entropy = await rememberStep('entropy', 'Waiting for live TN10 entropy', 'GET /entropy waits for the target future blue-score to have live block evidence. Slow waits here are expected; no local entropy substitute is used.', apiClient.getEntropy(state.roundId));
-      state.entropy = entropy.entropy;
-      if (entropy.round) state.round = entropy.round;
+      const payload = await rememberStep(
+        'proofBundle',
+        'Fetching TN10 evidence bundle',
+        'The server is fetching a future TN10 block and assembling the portable proof bundle. It does not return a proof-authority verdict for the browser to trust.',
+        fetchJson(`/examples/roulette-poc/rounds/${encodeURIComponent(state.roundId)}/spin`, {
+          method: 'POST',
+          body: JSON.stringify({ bets, clientSeed: state.clientSeed }),
+        })
+      );
+      state.round = payload.round;
+      state.proof = payload.proof;
+      state.entropy = payload.proof.entropy;
+      state.trace.serverPackageCheck = payload.serverPackageCheck;
       state.stage = 'entropy';
       renderAll();
 
-      const revealed = await rememberStep('reveal', 'Revealing API-derived result', 'The API reveals the server seed and derives the displayed roulette result from the committed inputs and live entropy.', apiClient.revealRound(state.roundId, { serverSeed: state.serverSeed }));
-      state.round = revealed.round;
+      const independentlyDerivedOutcome = deriveOutcome({
+        entropyHash: state.proof.entropy.entropyHash,
+        spec: state.proof.outcome,
+        derivers: rouletteOutcomeDerivers,
+      });
+      state.trace.browserOutcome = independentlyDerivedOutcome;
       state.stage = 'revealed';
       renderAll();
 
-      const proofPayload = await rememberStep('proof', 'Fetching proof bundle', 'Fetching the full proof data behind the visible status strip and flowchart.', apiClient.getProof(state.roundId));
-      state.proof = proofPayload.proof;
-      const verification = await rememberStep('verification', 'Verifying proof replay', 'The API replays commitment, ledger, entropy, reveal, and result derivation for this claim level.', apiClient.verifyProof(state.proof));
+      const verification = verifyFairnessProof(state.proof, { outcomeDerivers: rouletteOutcomeDerivers });
       state.verification = verification;
-      state.stage = 'verified';
-      setStatus('Proof verified by API', true);
+      state.stage = verification.ok ? 'verified' : 'revealed';
+      setOperation(
+        verification.ok ? 'TN10 proof verified in browser' : 'Browser proof verification failed',
+        verification.ok
+          ? 'kaspa-pof-api replayed commitment, ledger, TN10 block evidence, entropy, reveal, and roulette outcome in this browser.'
+          : verification.errors.map((entry) => entry.message).join('; '),
+        verification.ok ? 'pass' : 'fail'
+      );
+      setStatus(verification.ok ? 'Browser package verified TN10 proof' : 'Browser package proof failed', verification.ok);
     } catch (error) {
       rememberError('spinError', error);
+      setOperation('Spin failed', error.message, 'fail');
       setStatus(error.message, false);
     } finally {
       state.busy = false;
       renderAll();
     }
+  }
+
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url, {
+      cache: 'no-store',
+      headers: { 'content-type': 'application/json', ...(options.headers || {}) },
+      ...options,
+    });
+    const text = await response.text();
+    const payload = text.trim() ? JSON.parse(text) : {};
+    if (!response.ok) throw new Error(payload.error || `${url} HTTP ${response.status}`);
+    return payload;
   }
 
   async function rememberStep(key, label, detail, promise) {
@@ -184,9 +203,10 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     try {
       const payload = await promise;
       const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
-      state.apiLog[`${key}Timing`] = { seconds: Number(seconds), label };
+      state.trace[`${key}Timing`] = { seconds: Number(seconds), label };
+      state.trace[key] = payload;
       setOperation(label, `${detail} Completed in ${seconds}s.`, 'busy');
-      return remember(key, Promise.resolve(payload));
+      return payload;
     } catch (error) {
       const seconds = ((performance.now() - startedAt) / 1000).toFixed(1);
       setOperation(`${label} failed`, `${error.message} after ${seconds}s.`, 'fail');
@@ -194,18 +214,18 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     }
   }
 
-  async function remember(key, promise) {
-    const payload = await promise;
-    state.apiLog[key] = payload;
-    return payload;
+  function deriveRouletteOutcome({ entropyHash }) {
+    const number = Number(BigInt(`0x${entropyHash.slice(0, 16)}`) % 37n);
+    return { number, color: rouletteColor(number), wheel: 'european-single-zero' };
+  }
+
+  function rouletteColor(number) {
+    if (number === 0) return 'green';
+    return new Set([1,3,5,7,9,12,14,16,18,19,21,23,25,27,30,32,34,36]).has(number) ? 'red' : 'black';
   }
 
   function rememberError(key, error) {
-    state.apiLog[key] = {
-      message: error.message,
-      status: error.status,
-      body: error.body,
-    };
+    state.trace[key] = { message: error.message, status: error.status, body: error.body };
   }
 
   function randomHex(bytes) {
@@ -221,7 +241,7 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     const anchor = tableRenderer.getZoneAnchor(zone);
     if (!anchor) return;
     state.selections.push({
-      id: state.nextSelectionId++ ,
+      id: state.nextSelectionId++,
       zoneId: zone.id,
       betType: zone.bet_type,
       label: tableRenderer.visibleZoneLabel(zone),
@@ -229,7 +249,7 @@ import { createToccataApiClient } from 'kaspa-pof-api';
       anchor,
     });
     if (state.stage === 'ready') state.stage = 'chips';
-    setOperation('Chip placed locally', `${tableRenderer.visibleZoneLabel(zone)} · ${amount} units. Chips stay local until Spin Wheel submits the ledger to the API.`, 'idle');
+    setOperation('Chip placed locally', `${tableRenderer.visibleZoneLabel(zone)} · ${amount} units. Chips stay local until Spin Wheel submits the locked ledger.`, 'idle');
     renderAll();
   }
 
@@ -237,7 +257,7 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     if (!canPlaceChips() || state.selections.length === 0) return;
     const removed = state.selections.pop();
     if (state.selections.length === 0) state.stage = 'ready';
-    setOperation('Last chip removed', `${removed.label} was removed before ledger submission.`, 'idle');
+    setOperation('Last chip removed', `${removed.label} was removed before ledger lock.`, 'idle');
     renderAll();
   }
 
@@ -246,7 +266,7 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     const count = state.selections.length;
     state.selections = [];
     state.stage = 'ready';
-    setOperation('Chips cleared', `${count} chip selection${count === 1 ? '' : 's'} removed before ledger submission.`, 'idle');
+    setOperation('Chips cleared', `${count} chip selection${count === 1 ? '' : 's'} removed before ledger lock.`, 'idle');
     renderAll();
   }
 
@@ -280,8 +300,7 @@ import { createToccataApiClient } from 'kaspa-pof-api';
   function renderHeader() {
     el.roundId.textContent = state.roundId || 'not started';
     el.roundStage.textContent = labelForStage(state.stage);
-    const claimLevel = (state.proof && state.proof.claimLevel) || (state.round && state.round.claimLevel) || 'pending';
-    el.claimLevel.textContent = claimLevel;
+    el.claimLevel.textContent = (state.proof && state.proof.claimLevel) || (state.round && state.round.claimLevel) || 'pending';
   }
 
   function renderTable() {
@@ -290,13 +309,7 @@ import { createToccataApiClient } from 'kaspa-pof-api';
       const stackKey = `${entry.anchor.x}:${entry.anchor.y}`;
       const stackIndex = chipStackCounts.get(stackKey) || 0;
       chipStackCounts.set(stackKey, stackIndex + 1);
-      return {
-        id: `chip-${entry.id}`,
-        x: entry.anchor.x,
-        y: entry.anchor.y,
-        stakeUnits: entry.amount,
-        stackIndex,
-      };
+      return { id: `chip-${entry.id}`, x: entry.anchor.x, y: entry.anchor.y, stakeUnits: entry.amount, stackIndex };
     });
     const resultNumber = state.round && state.round.result ? state.round.result.number : null;
     tableRenderer.renderRouletteTable(el.tableHost, tableLayout, {
@@ -323,18 +336,18 @@ import { createToccataApiClient } from 'kaspa-pof-api';
   }
 
   function renderResult() {
-    const result = state.round && state.round.result;
+    const result = state.proof && state.proof.outcome ? state.proof.outcome.result : state.round && state.round.result;
     if (!result) {
       el.resultValue.textContent = 'hidden';
       el.resultNote.textContent = state.round && state.round.commitment
         ? 'Commitment recorded before chip placement.'
-        : 'Preparing API commitment.';
+        : 'Preparing package commitment.';
       return;
     }
     el.resultValue.textContent = `${result.number} ${result.color}`;
-    el.resultNote.textContent = state.verification && state.verification.verified
-      ? 'Verified by API proof replay.'
-      : 'Result returned by API reveal.';
+    el.resultNote.textContent = state.verification && state.verification.ok
+      ? 'Verified in this browser by kaspa-pof-api proof replay.'
+      : 'Result included in the portable TN10 proof bundle.';
   }
 
   function renderOperationStatus() {
@@ -343,9 +356,9 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     const tone = operation.tone || 'idle';
     el.operationStatus.innerHTML = `
       <div class="operation-card ${escapeHtml(tone)}">
-        <span class="label">Current wait</span>
+        <span class="label">Current step</span>
         <strong>${escapeHtml(operation.label || 'Ready')}</strong>
-        <p>${escapeHtml(operation.detail || 'Live API status will appear here while the round is running.')}</p>
+        <p>${escapeHtml(operation.detail || 'TN10 package-runtime status will appear here while the round is running.')}</p>
       </div>
     `;
   }
@@ -354,7 +367,7 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     const spec = hydrateFlowSpec();
     if (!el.liveProofStatusRoot) return;
     if (!spec || !spec.compact || !Array.isArray(spec.compact.rows)) {
-      el.liveProofStatusRoot.innerHTML = '<p class="compact-loading">Loading live proof status…</p>';
+      el.liveProofStatusRoot.innerHTML = '<p class="compact-loading">Loading proof status…</p>';
       return;
     }
     el.liveProofStatusRoot.innerHTML = `
@@ -376,32 +389,14 @@ import { createToccataApiClient } from 'kaspa-pof-api';
   }
 
   function renderCompactSlot(node, index = 0, total = 1) {
-    if (!node) {
-      return '<span class="compact-step compact-gap" aria-label="No matching proof step">—</span>';
-    }
+    if (!node) return '<span class="compact-step compact-gap" aria-label="No matching proof step">—</span>';
     const help = node.compactHelp || node.summary || node.title;
-    const links = renderCompactHelpLinks(node.compactLinks || []);
     const edgeClass = index <= 1 ? 'tooltip-left' : index >= total - 2 ? 'tooltip-right' : 'tooltip-center';
     return `
       <span class="compact-step ${escapeHtml(node.status)} ${edgeClass}" tabindex="0" title="${escapeHtml(help)}" aria-label="${escapeHtml(`${node.title}: ${help}`)}" data-node-id="${escapeHtml(node.id)}">
         <span class="compact-step-label">${escapeHtml(node.compactLabel || node.badge || node.title)}</span>
         <span class="compact-info" aria-hidden="true">i</span>
-        <span class="compact-help" role="tooltip">
-          <span class="compact-help-text">${escapeHtml(help)}</span>
-          ${links}
-        </span>
-      </span>
-    `;
-  }
-
-  function renderCompactHelpLinks(links) {
-    const safeLinks = links
-      .filter((link) => link && typeof link.href === 'string' && /^https:\/\/github\.com\/zartyblartfast\/kaspa-toccata-api\//.test(link.href))
-      .slice(0, 2);
-    if (safeLinks.length === 0) return '';
-    return `
-      <span class="compact-help-links">
-        ${safeLinks.map((link) => `<a href="${escapeHtml(link.href)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label || 'Learn more')}</a>`).join('')}
+        <span class="compact-help" role="tooltip"><span class="compact-help-text">${escapeHtml(help)}</span></span>
       </span>
     `;
   }
@@ -434,17 +429,10 @@ import { createToccataApiClient } from 'kaspa-pof-api';
       details: node.detailsBinding ? boundValue(node.detailsBinding) : undefined,
     }));
     const nodeById = new Map(nodes.map((node) => [node.id, node]));
-    const edges = spec.edges.map((edge) => ({
-      ...edge,
-      fromNode: nodeById.get(edge.from),
-      toNode: nodeById.get(edge.to),
-    })).filter((edge) => edge.fromNode && edge.toNode);
+    const edges = spec.edges.map((edge) => ({ ...edge, fromNode: nodeById.get(edge.from), toNode: nodeById.get(edge.to) })).filter((edge) => edge.fromNode && edge.toNode);
     const compact = spec.compact ? {
       ...spec.compact,
-      rows: (spec.compact.rows || []).map((row) => ({
-        ...row,
-        slots: (row.nodeIds || []).map((nodeId) => nodeId ? nodeById.get(nodeId) : null),
-      })),
+      rows: (spec.compact.rows || []).map((row) => ({ ...row, slots: (row.nodeIds || []).map((nodeId) => nodeId ? nodeById.get(nodeId) : null) })),
       maxSlots: Math.max(1, ...(spec.compact.rows || []).map((row) => (row.nodeIds || []).length)),
     } : null;
     return { ...spec, lanes, nodes, edges, compact };
@@ -464,43 +452,17 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     for (const edge of spec.edges) {
       if (!nodeIds.has(edge.from) || !nodeIds.has(edge.to)) throw new Error(`flowchart edge ${edge.id} references missing node`);
     }
-    if (spec.compact && Array.isArray(spec.compact.rows)) {
-      for (const row of spec.compact.rows) {
-        if (!Array.isArray(row.nodeIds)) throw new Error(`compact row ${row.id || row.label} requires nodeIds`);
-        for (const nodeId of row.nodeIds) {
-          if (nodeId !== null && !nodeIds.has(nodeId)) throw new Error(`compact row ${row.id || row.label} references missing node ${nodeId}`);
-        }
-      }
-    }
-    for (const node of spec.nodes) {
-      if (node.compactLinks !== undefined) {
-        if (!Array.isArray(node.compactLinks)) throw new Error(`flowchart node ${node.id} has invalid compactLinks`);
-        for (const link of node.compactLinks) {
-          if (!link || typeof link.label !== 'string' || typeof link.href !== 'string') throw new Error(`flowchart node ${node.id} has invalid compact link`);
-          if (!/^https:\/\/github\.com\/zartyblartfast\/kaspa-toccata-api\//.test(link.href)) throw new Error(`flowchart node ${node.id} compact link must target project docs`);
-        }
-      }
-    }
   }
 
   function renderLaneHeader(lane) {
     const column = lane.column === 1 ? 1 : 3;
-    return `
-      <header class="lane-title-card ${lane.theme === 'proof' ? 'proof-lane' : 'round-lane'}" style="grid-column: ${column}; grid-row: 1">
-        <h3>${escapeHtml(lane.title)}</h3>
-        <p>${escapeHtml(lane.subtitle)}</p>
-      </header>
-    `;
+    return `<header class="lane-title-card ${lane.theme === 'proof' ? 'proof-lane' : 'round-lane'}" style="grid-column: ${column}; grid-row: 1"><h3>${escapeHtml(lane.title)}</h3><p>${escapeHtml(lane.subtitle)}</p></header>`;
   }
 
   function renderEdgeConnector(edge) {
     const row = edge.fromNode.row;
     const direction = edge.fromNode.column < edge.toNode.column ? 'left-to-right' : 'right-to-left';
-    return `
-      <div class="edge-connector ${direction}" style="grid-column: 2; grid-row: ${row + 1}" data-edge-id="${escapeHtml(edge.id)}">
-        <span>${escapeHtml(edge.label)}</span>
-      </div>
-    `;
+    return `<div class="edge-connector ${direction}" style="grid-column: 2; grid-row: ${row + 1}" data-edge-id="${escapeHtml(edge.id)}"><span>${escapeHtml(edge.label)}</span></div>`;
   }
 
   function renderFlowNode(node) {
@@ -517,26 +479,6 @@ import { createToccataApiClient } from 'kaspa-pof-api';
     `;
   }
 
-  function renderEdge(edge, spec) {
-    const leftToRight = edge.fromNode.column < edge.toNode.column;
-    const startX = edge.fromNode.column === 1 ? 46 : 54;
-    const endX = edge.toNode.column === 1 ? 46 : 54;
-    const startY = rowCenterPercent(edge.fromNode.row, spec.layout.rowCount);
-    const endY = rowCenterPercent(edge.toNode.row, spec.layout.rowCount);
-    const midX = (startX + endX) / 2;
-    const labelOffset = edge.labelOffset || { x: 0, y: -8 };
-    const path = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`;
-    const marker = leftToRight ? 'marker-end="url(#flow-arrowhead)"' : 'marker-start="url(#flow-arrowhead)"';
-    return `
-      <path class="edge-path" d="${path}" ${marker}></path>
-      <text class="edge-label" x="${midX + Number(labelOffset.x || 0)}" y="${((startY + endY) / 2) + Number(labelOffset.y || 0)}" text-anchor="middle">${escapeHtml(edge.label)}</text>
-    `;
-  }
-
-  function rowCenterPercent(row, rowCount) {
-    return 12 + ((row - 0.5) / rowCount) * 82;
-  }
-
   function boundText(binding, fallback = '') {
     const value = boundValue(binding);
     if (value === undefined || value === null || value === '') return fallback;
@@ -544,30 +486,28 @@ import { createToccataApiClient } from 'kaspa-pof-api';
   }
 
   function boundValue(binding) {
-    const writes = state.round && state.round.tn10Writes ? state.round.tn10Writes : {};
     const bindings = {
-      roundSummary: () => ({ roundId: state.roundId, stage: state.stage }),
+      roundSummary: () => ({ roundId: state.roundId, stage: state.stage, claimLevel: state.round && state.round.claimLevel }),
       roundId: () => state.roundId ? `roundId ${state.roundId}` : undefined,
       roundCommitmentGate: () => ({ commitmentExists: Boolean(state.round && state.round.commitment), chipsEnabled: canPlaceChips() }),
       commitment: () => state.round && state.round.commitment ? shortText(state.round.commitment) : undefined,
       selections: () => state.selections,
-      chipSelections: () => `${state.selections.length} chip selection${state.selections.length === 1 ? '' : 's'} on the table. This is a player/table operation, not a Toccata proof step by itself.`,
+      chipSelections: () => `${state.selections.length} chip selection${state.selections.length === 1 ? '' : 's'} on the table.`,
       spinAction: () => ({ action: 'Spin Wheel button' }),
-      'apiLog.createRound': () => state.apiLog.createRound,
-      'apiLog.commit': () => state.apiLog.commit,
-      'apiLog.betLedger': () => state.apiLog.betLedger,
-      'apiLog.close': () => state.apiLog.close,
-      'apiLog.entropy': () => state.apiLog.entropy,
-      'apiLog.reveal': () => state.apiLog.reveal,
-      ledgerHash: () => state.round && state.round.betLedger ? shortText(state.round.betLedger.ledgerHash) : undefined,
-      entropyTarget: () => state.round && state.round.futureEntropyPlan ? `target ${state.round.futureEntropyPlan.targetBlueScore || state.round.futureEntropyPlan.targetDaaScore}` : undefined,
+      'trace.createRound': () => state.trace.createRound,
+      'trace.betLedger': () => state.trace.betLedger,
+      'trace.proofBundle': () => state.trace.proofBundle,
+      'trace.serverPackageCheck': () => state.trace.serverPackageCheck,
+      'trace.browserOutcome': () => state.trace.browserOutcome,
+      ledgerHash: () => state.proof && state.proof.ledger ? shortText(state.proof.ledger.ledgerHash) : undefined,
+      entropyTarget: () => state.proof && state.proof.entropy ? state.proof.entropy.target : undefined,
       entropy: () => state.entropy,
-      entropyHash: () => state.entropy ? shortText(state.entropy.entropyHash || state.entropy.blockHash) : undefined,
-      result: () => state.round && state.round.result ? `${state.round.result.number} ${state.round.result.color}` : undefined,
-      revealSummary: () => state.round && state.round.result ? 'Reveal matches the earlier commitment.' : undefined,
-      verification: () => state.verification && state.verification.verified ? 'verified: true' : undefined,
-      verificationForPlayer: () => state.verification && state.verification.verified ? 'The displayed result has a verified API proof.' : undefined,
-      proofVerificationBundle: () => ({ proof: state.proof, verification: state.verification, txEvidence: writes }),
+      entropyHash: () => state.entropy ? shortText(state.entropy.entropyHash) : undefined,
+      result: () => state.proof && state.proof.outcome ? `${state.proof.outcome.result.number} ${state.proof.outcome.result.color}` : undefined,
+      revealSummary: () => state.proof && state.proof.reveal ? 'Reveal matches the earlier commitment.' : undefined,
+      verification: () => state.verification ? `ok: ${state.verification.ok}` : undefined,
+      verificationForPlayer: () => state.verification && state.verification.ok ? 'The displayed result passed browser package proof replay.' : undefined,
+      proofVerificationBundle: () => ({ proof: state.proof, verification: state.verification }),
     };
     const getter = bindings[binding];
     return getter ? getter() : undefined;

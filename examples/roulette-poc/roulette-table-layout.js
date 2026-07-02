@@ -1,4 +1,4 @@
-// Visual roulette table geometry only. Round state, result, proof, and verification come from /v1 API responses.
+// Visual roulette table geometry only. Round state, result, proof, and verification come from the example consumer and kaspa-pof-api package runtime.
 const ROULETTE_TABLE_LAYOUT = {
   "schema": "kaspa-fair-roulette-table-layout-v1",
   "roulette_variant": "european",

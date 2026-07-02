@@ -1,6 +1,6 @@
 # Handover Prompt for New Hermes Profile: kaspa-pof-api
 
-Use this when starting the new Hermes Agent profile for the `kaspa-pof-api` project.
+Use this after `/new` to continue the `kaspa-pof-api` work.
 
 ## Project root
 
@@ -18,130 +18,173 @@ https://github.com/zartyblartfast/kaspa-pof-api.git
 
 Build a fresh, general-purpose npm API/package for proof-of-fairness applications using Kaspa/TN10/mainnet evidence.
 
-The package should be usable by app developers building games or other fairness-sensitive apps. Roulette is only the first example consumer.
+The package must stay app-agnostic. Roulette is the first example consumer, not package core.
 
-## Critical architecture correction
+## Critical architecture rule
 
-The old `kaspa-toccata-api` project currently has a hybrid architecture:
+Do not revert to the old `npm HTTP client + private Node proof service` architecture.
 
-```text
-roulette app imports npm package name
-  ↓
-npm package client calls HTTP /v1/*
-  ↓
-Node server owns most live TN10/proof lifecycle logic
-```
-
-That is not the desired final architecture for this project.
-
-The new target is:
+Target model:
 
 ```text
-kaspa-pof-api npm package owns reusable proof/fairness verification/runtime primitives
-optional VPS/server/adapters provide convenience only
-roulette PoC imports package as an external app would
+service/app supplies portable evidence
+        ↓
+consumer imports kaspa-pof-api
+        ↓
+consumer/package runtime independently verifies the proof
+        ↓
+UI displays the package verifier result
 ```
 
-The server must not be the proof authority. Any service may supply evidence, but package/browser/consumer code should be able to verify fairness independently.
+A server may create rounds, store state, fetch TN10/mainnet evidence, host files, or submit explicitly gated anchors. It must not be the proof authority. No `/v1/proofs/verify`-style trusted verdict should be used by the new roulette PoC.
+
+## Current package state
+
+Package version: `0.1.0-alpha.1`.
+
+Latest committed/pushed baseline before this uncommitted roulette work:
+
+```text
+c37d211 Prepare alpha.1 publish readiness docs
+b15c773 Add runtime proof-root anchored verification
+207e898 Make package runtime-first proof verifier
+```
+
+Root runtime exports include:
+
+```text
+hashCommitment / verifyCommitment
+hashLedger / verifyLedger
+deriveEntropyHash / verifyEntropyHash
+deriveOutcome / verifyOutcome
+validateClaimLevel
+validateKaspaBlockEvidence
+validateAnchorEvidence
+validateSubmittedAnchorTransactionEvidence
+estimateTn10AnchorFee
+validateTn10BroadcastPolicy
+submitTn10AnchorTransaction
+computeProofRoot
+buildProofRootAnchorPayload
+verifyFairnessProof / verifyProofBundle / verifyProofOfFairness
+```
+
+`src/http-client.*` is removed and the root package does not export the old HTTP client.
+
+## Roulette PoC current state
+
+`examples/roulette-poc/` has been adapted structurally into the new package-runtime consumer model.
+
+Important files:
+
+```text
+examples/roulette-poc/server.cjs
+examples/roulette-poc/app.js
+examples/roulette-poc/index.html
+examples/roulette-poc/flowchart-spec.json
+examples/roulette-poc/README.md
+test/roulette-runtime-consumer.test.mjs
+src/browser.mjs
+```
+
+Architecture:
+
+- `examples/roulette-poc/server.cjs` is roulette-specific infrastructure.
+- It creates committed rounds, keeps hidden server seeds server-side, accepts locked chip ledgers, fetches real TN10 future-block evidence via rusty-kaspa WASM, assembles portable `tn10_future_entropy` proof bundles, and sanity-checks those bundles with the package runtime.
+- The browser imports `kaspa-pof-api` through an import map to `/src/browser.mjs`.
+- The browser calls `verifyFairnessProof(proof, { outcomeDerivers })` itself and displays that package verifier result.
+- Roulette-specific outcome mapping remains in the example consumer via `roulette-poc:number-v1`; package core remains app-agnostic.
+- The previous `local_bundle_only` browser-local entropy path was removed from the roulette PoC.
+- No legacy `/v1/*` proof-authority path should be reintroduced.
+
+Run locally from the repo root:
+
+```bash
+cd /root/kaspa-pof-api
+node examples/roulette-poc/server.cjs
+```
+
+Default WASM path expected by the example server:
+
+```text
+/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kaspa
+```
+
+If needed:
+
+```bash
+KASPA_WASM_PKG=/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kaspa \
+node examples/roulette-poc/server.cjs
+```
+
+Open through SSH port forwarding if viewing from a laptop:
+
+```bash
+ssh -L 8123:127.0.0.1:8123 root@srv1608371
+```
+
+Then browse:
+
+```text
+http://127.0.0.1:8123/examples/roulette-poc/
+```
+
+The user confirmed they can see the page. A full live create/spin browser proof completion was not yet recorded in this chat because an earlier local curl create/spin command was blocked by the approval layer. Do not claim live spin verification until you run and see it.
+
+## Latest verification evidence
+
+After the roulette structural implementation and documentation updates:
+
+```text
+npm run test: PASS
+77 tests
+22 suites
+0 failures
+
+npm run smoke: PASS
+KASPA_POF_ROULETTE_TN10_VERIFY=PASS
+KASPA_POF_SMOKE=PASS
+
+npm pack --dry-run: PASS earlier in this session after roulette files were added
+53 files
+package candidate: kaspa-pof-api-0.1.0-alpha.1.tgz
+```
+
+Re-run `npm pack --dry-run` after this handover edit if publish/package contents are part of the next step.
 
 ## User preferences / constraints
 
-- Avoid mock/offline/static proof/result fixture traps unless explicitly authorized as temporary exceptions.
-- Avoid dry-run terminology and paths for Kaspa/Toccata transaction flows.
-- Prefer live Kaspa/TN10/mainnet evidence paths and honest claim levels.
-- General-purpose package design matters more than roulette-specific shortcuts.
-- Do not inherit architecture from prior repos without fresh evidence.
-- For UI/product work, do not make unrequested layout changes.
-- For commercial/mainnet thinking: no-spend future-entropy verification should be default; paid mainnet anchoring can be optional if explicit, fee-estimated, and fee-capped.
+- No mocks, static proof/result fixtures, spoofed API data, fake local proofs, or half-baked shortcuts.
+- Direct honesty: if live TN10 proof completion is not observed, say so and run it instead of caveating it away.
+- Package core stays generalized; roulette-specific UI/game/outcome/server orchestration belongs in `examples/roulette-poc/`.
+- Optional services/adapters may fetch/store/submit evidence but must not be proof authority.
+- No hidden paid/mainnet spend paths. Paid anchoring must be explicit, fee-capped, and acknowledged.
+- Do not publish without explicit agreement on contents/version/auth state.
+- Do not commit unless the user asks.
 
-## Current package contents
+## Best next step after /new
 
-The package root is runtime-first and exports local proof/fairness primitives. The legacy `src/http-client.*` files have been removed from package source and exports.
-
-Key package modules now include:
+1. Read:
 
 ```text
-src/commitment.mjs|cjs|d.ts
-src/ledger.mjs|cjs|d.ts
-src/entropy.mjs|cjs|d.ts
-src/outcome.mjs|cjs|d.ts
-src/anchoring/evidence.mjs|cjs|d.ts
-src/anchoring/policy.mjs|cjs|d.ts
-src/anchoring/submit.mjs|cjs|d.ts
-src/networks/claim-levels.mjs|cjs|d.ts
-src/networks/kaspa-evidence.mjs|cjs|d.ts
-src/proof/verify.mjs|cjs|d.ts
-src/index.mjs|cjs|d.ts
-test/
-docs/
-references/
+docs/SESSION_HANDOVER_REMAINING_TASKS.md
+docs/HANDOVER_PROMPT.md
+docs/ARCHITECTURE.md
+docs/PACKAGE_SPEC.md
+docs/NEXT_PHASE_PLAN.md
+README.md
 ```
 
-The root API includes local functions such as `hashCommitment`, `hashLedger`, `deriveEntropyHash`, `deriveOutcome`, `verifyOutcome`, `validateKaspaBlockEvidence`, `validateAnchorEvidence`, `validateSubmittedAnchorTransactionEvidence`, `estimateTn10AnchorFee`, `validateTn10BroadcastPolicy`, `submitTn10AnchorTransaction`, and `verifyFairnessProof` / `verifyProofBundle` / `verifyProofOfFairness`.
-
-The outcome helpers accept caller-supplied deterministic derivers and do not make roulette a package-core assumption.
-
-Transaction-anchor evidence validation is available through `validateAnchorEvidence()`, and `verifyFairnessProof()` uses it for `tn10_tx_anchored` and `mainnet_tx_anchored` proofs. Guarded TN10-only transaction-anchor submission is available through `submitTn10AnchorTransaction()` and fails closed unless explicit testnet-only broadcast gates, acknowledgement, key shape, and fee cap pass. `validateSubmittedAnchorTransactionEvidence()` validates submitted TN10 anchor transaction evidence, including payload hash binding. Mainnet submission is not implemented.
-
-Live TN10 state: a new ignored local key was generated for this repo. Public address: `kaspatest:qplkdw78a8mugpk5q5m7jpa4tvpu8amgygztlp38rqqjje20uvv7vk0xz2yvr`. Private key path: `/root/kaspa-pof-api/local-secrets/tn10-anchor-funded-key/private-key.hex`; do not print it. The user funded it. A live guarded proof-root smoke anchor was submitted: txid `8bf3489e5cdcc8347d0882b52fe6dc13284dd2399c581e56acc32c78abc4b616`, accepting block `ca45ad4e31752734d9620db161f9c6e242bb8ccf44a6df967f79dc7cc61602e7`. Public non-secret evidence is in `references/live-tn10-proof-root-anchor-evidence.json`.
-
-Important proof-root-only clarification: the older live proof-root transaction in `references/live-tn10-proof-root-anchor-evidence.json` is a smoke anchor proving submission/evidence validation, not a canonical root of a complete fairness proof. Current `tn10_tx_anchored` proofs still require `commit`, `close`, and `reveal` anchors. A formal proof-root-only claim model is now implemented as `tn10_proof_root_anchored`, with `computeProofRoot(proof)`, `buildProofRootAnchorPayload(proof)`, verifier rules that compare the recomputed root to submitted transaction payload evidence, and a live TN10 tx whose payload commits to a full sample proof bundle in `references/live-tn10-proof-root-anchored-evidence.json` / `references/live-tn10-proof-root-anchored-proof.json`.
-
-The copied `examples/roulette-poc/` material is legacy/reference material from the old app lineage. The current deployed roulette app uses the old npm API plus its own VPS node/server and can continue unchanged. A new roulette consumer should be cloned/adapted separately to use this package runtime model.
-
-## Reference repos
-
-Use these as references, not as architecture authorities:
-
-```text
-/root/kaspa-toccata-api
-/root/kaspa-fair-foundation
-```
-
-Important source files in `/root/kaspa-toccata-api`:
-
-```text
-src/server.cjs                  # current hybrid server; extract carefully, do not copy wholesale
-src/client.mjs|cjs|d.ts          # current npm HTTP client
-apps/roulette-poc/               # current roulette PoC
-scripts/*smoke.sh                # verification patterns
-```
-
-Useful reference docs copied into this repo:
-
-```text
-references/kaspa-toccata-api-status.md
-references/roulette-poc-status-source.md
-references/verify-tn10-transactions-source.md
-```
-
-## Suggested first implementation milestones
-
-1. Define package proof bundle schema and claim levels.
-2. Extract pure verification primitives:
-   - commitment hash and validation;
-   - generic input ledger hash;
-   - entropy hash derivation;
-   - deterministic outcome derivation hooks;
-   - proof replay/verification.
-3. Add app-defined outcome helper APIs and optional roulette outcome examples without making roulette a package assumption. Generic helpers are implemented; optional roulette examples remain future/separate.
-4. Add fuller transaction-anchor payload/evidence validators and fee estimators as higher claim-level support. Anchor evidence validation plus guarded TN10 fee/spend/submission support are implemented; mainnet write paths remain future/design-only.
-5. Document paid feature gates clearly: explicit enablement, fee estimate, fee cap, acknowledgement, no hidden broadcasting.
-6. Create/adapt a separate new roulette consumer that verifies locally through the package runtime.
-7. Only then consider optional transport adapters. Do not reintroduce an HTTP-centered root API.
-
-## Working rule
-
-The package must not depend on roulette.
-
-Roulette must depend on the package.
-
-## Verification baseline
-
-Run:
+2. Check state:
 
 ```bash
+cd /root/kaspa-pof-api
+git status --short
+npm run test
 npm run smoke
+npm pack --dry-run
 ```
 
-The smoke checks package runtime exports, deterministic commitment/ledger/entropy behavior, Kaspa evidence validation, local proof verification, syntax, and fixture-trap guards. `npm test` runs the unit suite.
+3. If the user wants the roulette milestone finished, run the live example server and complete a real browser create/place-chip/spin flow, then record whether the browser reaches `Browser package verified TN10 proof` with claim level `tn10_future_entropy`.
+
+4. Ask whether to commit the verified roulette/doc milestone.

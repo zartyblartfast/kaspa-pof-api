@@ -28,7 +28,7 @@ The legacy `src/http-client.*` migration files have been removed from the packag
 
 See `docs/API.md` for runtime API examples, including `tn10_proof_root_anchored` proof-root verification. See `docs/PUBLISH_READINESS.md` for package contents, npm registry/auth observations, and pre-publish decision points.
 
-`examples/roulette-poc/` is copied migration/reference material from the old app lineage and is not the package authority. The current deployed roulette app can continue using its old npm API and VPS node/server unchanged. A new roulette consumer should be cloned/adapted separately to use this package runtime model.
+`examples/roulette-poc/` is now the in-repo roulette consumer for this package runtime model. It includes a roulette-specific Node server for round orchestration, hidden seed custody, chip-ledger locking, and live TN10 evidence fetching, while the browser imports `kaspa-pof-api` and verifies the returned `tn10_future_entropy` proof bundle with `verifyFairnessProof()`. The server supplies evidence; it is not a proof-authority endpoint. The current deployed roulette app can continue using its old npm API and VPS node/server unchanged.
 
 ## Target package direction
 
@@ -47,7 +47,7 @@ The package should become general-purpose and app-agnostic:
 - explicit TN10 transaction-anchor submission, gated by fee cap and acknowledgement
 - transaction anchor evidence validation
 
-Roulette-specific UI and game rules belong in a consumer app, not in the package core. A future roulette PoC may live under `examples/roulette-poc/` or a separate app/repo, but it must depend on the package rather than define it.
+Roulette-specific UI and game rules belong in the `examples/roulette-poc/` consumer, not in the package core. That consumer must depend on the package rather than define it.
 
 ## Important boundary
 
@@ -67,4 +67,4 @@ The roulette app must depend on the package.
 3. Add stronger app-defined outcome derivation helpers so roulette is one example, not a hard-coded package assumption.
 4. Add fuller transaction-anchor evidence validation and fee/spend policy interfaces for paid claim levels.
 5. Document the runtime API and publish-readiness checklist.
-6. Build a separate new roulette consumer that verifies proofs locally through `kaspa-pof-api`, not by trusting a service response.
+6. `examples/roulette-poc/` has been adapted into a TN10-backed package-runtime consumer: the example server supplies round/evidence plumbing and the browser verifies through `kaspa-pof-api`, not by trusting a service response.

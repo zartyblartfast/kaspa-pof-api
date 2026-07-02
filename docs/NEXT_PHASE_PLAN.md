@@ -4,7 +4,7 @@
 
 Turn `kaspa-pof-api` from a migration scaffold into a general-purpose npm package whose core value is local, reusable proof-of-fairness verification using Kaspa/TN10/mainnet evidence.
 
-Roulette remains the first intended consumer, but the package must support other apps with similar fairness objectives. The current deployed roulette app can remain on its old npm API plus VPS node/server; a new roulette consumer should be cloned/adapted separately for this package.
+Roulette remains the first intended consumer, but the package must support other apps with similar fairness objectives. The current deployed roulette app can remain on its old npm API plus VPS node/server; the in-repo `examples/roulette-poc/` directory is the agreed location for the new package-runtime roulette consumer.
 
 ## Non-goals for this phase
 
@@ -162,30 +162,35 @@ Acceptance criteria:
 - Network mismatch fails verification.
 - Claim level accurately communicates what was proven.
 
-## Workstream 5: Build a separate roulette consumer that uses local package verification
+## Workstream 5: Adapt `examples/roulette-poc/` into a package-runtime roulette consumer
 
-Planned files:
+Status: implemented structurally as a TN10-backed package-runtime consumer. The example now has a roulette-specific server that creates committed rounds, locks chip ledgers, fetches real TN10 future-block evidence through rusty-kaspa WASM, assembles portable `tn10_future_entropy` proof bundles, and sanity-checks them through the package. The browser imports `kaspa-pof-api`, supplies the roulette outcome deriver, and calls `verifyFairnessProof()` itself. The server is evidence plumbing, not proof authority.
+
+Implemented files:
 
 ```text
 examples/roulette-poc/app.js
 examples/roulette-poc/index.html
 examples/roulette-poc/README.md
+examples/roulette-poc/server.cjs
+test/roulette-runtime-consumer.test.mjs
 ```
 
-Expected app flow:
+Implemented app flow:
 
 ```text
-consumer/service provides or fetches round/proof evidence
-roulette app calls verifyProofBundle(proof) from kaspa-pof-api
-UI displays local verification result
+roulette server creates committed round and fetches TN10 evidence
+server returns portable tn10_future_entropy proof bundle
+browser calls verifyFairnessProof(proof) from kaspa-pof-api
+UI displays browser package verification result
 ```
 
 Acceptance criteria:
 
-- New roulette consumer does not rely on `/v1/proofs/verify` for proof authority.
+- The roulette consumer does not rely on `/v1/proofs/verify` or any HTTP endpoint for proof authority.
 - Existing package-name import remains.
-- No raw app-level `/v1/*` fetches are added.
-- No mock/offline/static result proof path is added.
+- Legacy raw app-level `/v1/*` proof-authority fetches are removed or demoted to non-authoritative convenience/evidence plumbing.
+- No mock/offline/static result/proof spoofing path is added.
 
 ## Workstream 6: Optional transport adapters, after runtime stabilization
 
@@ -279,15 +284,16 @@ After tests are added:
 npm test
 ```
 
-Expected future smoke markers:
+Current relevant smoke markers include:
 
 ```text
-KASPA_POF_PROOF_SCHEMA=PASS
 KASPA_POF_COMMITMENT_VERIFY=PASS
 KASPA_POF_LEDGER_HASH=PASS
 KASPA_POF_ENTROPY_DERIVE=PASS
 KASPA_POF_PROOF_VERIFY_LOCAL=PASS
-KASPA_POF_ROULETTE_LOCAL_VERIFY=PASS
+KASPA_POF_PROOF_ROOT_ANCHORED=PASS
+KASPA_POF_ROULETTE_IMPORT_WIRING=PASS
+KASPA_POF_ROULETTE_TN10_VERIFY=PASS
 ```
 
 ## First implementation sequence
@@ -301,19 +307,19 @@ KASPA_POF_ROULETTE_LOCAL_VERIFY=PASS
 7. Document claim levels and mainnet anchoring policy.
 8. Add paid anchor payload/fee policy interfaces without hidden broadcasting. Anchor evidence validation and guarded TN10 submission are implemented; mainnet write design remains future work.
 9. Implement the formal proof-root-only TN10 claim model described in Workstream 8 if the next priority remains proof-root-only anchoring.
-10. Create/adapt a separate new roulette consumer that calls local verification.
-11. Commit only when the user asks; the user has allowed skipping commits across several related tasks.
+10. DONE structurally: adapt `examples/roulette-poc/` into a TN10-backed package-runtime roulette consumer that calls browser-side package verification.
+11. Next: finish live create/spin/browser verification if not already completed, then decide whether to commit. Commit only when the user asks; the user has allowed skipping commits across several related tasks.
 
 ## Open questions
 
-- Near-term active discussion list after the proof-root/API-docs pass:
-  1. Decide publish version (`0.1.0-alpha.0` or bump first).
-  2. Decide optional chain evidence provider/adapters.
-  3. Build/adapt a separate roulette consumer against this package runtime.
+- Near-term active work after the roulette adaptation:
+  1. Run/record live create+spin browser verification against `examples/roulette-poc/server.cjs` if not already completed.
+  2. Run `npm run smoke` and `npm pack --dry-run` after the doc/handover update.
+  3. Ask whether to commit the verified roulette milestone.
+- Version decision completed: publish candidate is `0.1.0-alpha.1`.
+- Optional chain evidence provider/adapters are parked until roulette integration proves they are needed.
 - Mainnet paid submission is parked for a later stage.
 
-- Should browser-local chain evidence fetching be in this phase, or should the service continue to supply block evidence while the package validates it?
-- Should roulette outcome derivation be part of the core package or an example plugin?
 - What finality depth should `mainnet_future_entropy` require?
 - Should the package name published to npm be `kaspa-pof-api`, or should this repo eventually publish scoped packages?
 - Should the proof-root-only claim level be named `tn10_proof_root_anchored`, or should a different explicit claim-level name be used?

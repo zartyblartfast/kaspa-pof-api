@@ -1,15 +1,12 @@
-import { createRequire } from 'node:module';
-
 import { sha256Hex } from '../commitment.mjs';
 import { canonicalJson } from '../ledger.mjs';
 import { parseSompi, validateTn10BroadcastPolicy } from './policy.mjs';
 
-const require = createRequire(import.meta.url);
 const DEFAULT_KASPA_WASM_PKG = '/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kaspa';
 
 async function submitTn10AnchorTransaction({
   kaspa,
-  wasmPackage = process.env.KASPA_WASM_PKG || DEFAULT_KASPA_WASM_PKG,
+  wasmPackage,
   networkId = 'testnet-10',
   phase,
   payload,
@@ -39,7 +36,8 @@ async function submitTn10AnchorTransaction({
   if (typeof privateKeyHex !== 'string' || !/^[0-9a-f]{64}$/i.test(privateKeyHex.trim())) {
     return fail('KASPA_POF_TN10_PRIVATE_KEY_INVALID', 'privateKeyHex must be a 64-character hex TN10 private key');
   }
-  const kit = kaspa || loadKaspaWasm(wasmPackage);
+  const resolvedWasmPackage = wasmPackage || envValue('KASPA_WASM_PKG') || DEFAULT_KASPA_WASM_PKG;
+  const kit = kaspa || await loadKaspaWasm(resolvedWasmPackage);
   const required = ['PrivateKey', 'createTransactions', 'RpcClient', 'Resolver', 'Encoding'];
   for (const name of required) {
     if (!kit[name]) return fail('KASPA_POF_KASPA_WASM_EXPORT_MISSING', `Kaspa wasm package missing ${name}`);
@@ -163,8 +161,15 @@ function sanitizeJson(value) {
   return value;
 }
 
-function loadKaspaWasm(wasmPackage) {
+async function loadKaspaWasm(wasmPackage) {
+  const dynamicImport = Function('specifier', 'return import(specifier)');
+  const { createRequire } = await dynamicImport('node:module');
+  const require = createRequire(import.meta.url);
   return require(wasmPackage);
+}
+
+function envValue(name) {
+  return typeof process !== 'undefined' && process && process.env ? process.env[name] : undefined;
 }
 
 function withTimeout(label, promise, timeoutMs) {

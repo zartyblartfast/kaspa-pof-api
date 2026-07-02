@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kaspa Toccata Roulette PoC</title>
+  <title>Kaspa PoF Roulette Runtime Example</title>
   <link rel="stylesheet" href="/examples/roulette-poc/styles.css">
   <script type="importmap">
     {
       "imports": {
-        "kaspa-pof-api": "/src/index.mjs"
+        "kaspa-pof-api": "/src/browser.mjs"
       }
     }
   </script>
@@ -16,9 +16,9 @@
 <body>
   <header class="page-header">
     <div>
-      <p class="eyebrow">Live TN10 proof-backed roulette</p>
-      <h1>Kaspa Toccata Roulette PoC</h1>
-      <p class="subhead">A roulette-first prototype: the top table is the game, and the flowchart below explains how the Kaspa Toccata API proves the result.</p>
+      <p class="eyebrow">kaspa-pof-api package runtime roulette</p>
+      <h1>Roulette Package Runtime Example</h1>
+      <p class="subhead">A roulette consumer that imports kaspa-pof-api package runtime primitives and verifies a TN10 future-entropy proof bundle in the browser.</p>
     </div>
     <div id="serviceStatus" class="status-pill">Starting…</div>
   </header>
@@ -28,7 +28,7 @@
       <div class="section-heading">
         <div>
           <h2 id="roulette-game-title">Roulette Game</h2>
-          <p class="note">Click the table to place chips. Reset creates a new API round and commits hidden result material before chips are accepted.</p>
+          <p class="note">Click the table to place chips. Reset creates a TN10 future-entropy round and commits hidden result material before chips are accepted.</p>
         </div>
         <div class="round-summary" aria-live="polite">
           <span class="label">Round</span>
@@ -48,7 +48,7 @@
           <div class="result-card">
             <span class="label">Result</span>
             <strong id="resultValue">hidden</strong>
-            <p id="resultNote">The browser does not choose the winning number.</p>
+            <p id="resultNote">The browser package verifier, not a service verdict, drives the displayed number.</p>
           </div>
 
           <label class="field chip-field">
@@ -85,7 +85,7 @@
       <div class="section-heading">
         <div>
           <h2 id="proof-title">Proof of Fairness</h2>
-          <p class="note">Follow the two-column flow. Left: the roulette round. Right: the Kaspa Toccata proof evidence returned by the API.</p>
+          <p class="note">Follow the two-column flow. Left: the roulette round. Right: package primitives verify the TN10 proof bundle in the browser.</p>
         </div>
         <div class="claim-card">
           <span class="label">Claim level</span>
@@ -96,7 +96,7 @@
       <details class="flowchart-details">
         <summary>
           <span>Show full proof flowchart</span>
-          <small>Detailed API evidence and row-by-row proof mapping</small>
+          <small>Detailed package-runtime proof mapping</small>
         </summary>
         <div id="flowchartRoot" class="flowchart-root" aria-live="polite"></div>
       </details>

@@ -21,6 +21,15 @@ Given a pre-committed hidden server input, fixed user/app inputs, and future Kas
 7. Proof bundles must be portable JSON.
 8. Missing or inconsistent proof evidence must fail closed.
 
+## Current roulette example consumer
+
+`examples/roulette-poc/` is an example consumer, not package core. It now demonstrates the intended production trust boundary:
+
+- `examples/roulette-poc/server.cjs` is roulette-specific infrastructure for round creation, hidden server seed custody, chip-ledger locking, live TN10 future-block evidence fetching, and portable proof-bundle assembly.
+- `examples/roulette-poc/app.js` imports `kaspa-pof-api` in the browser and verifies the returned `tn10_future_entropy` proof bundle through `verifyFairnessProof()` with a roulette-specific outcome deriver.
+- The server does not expose a trusted proof-verdict endpoint. Any service path is evidence plumbing; the package runtime remains the verifier.
+
+
 ## Terminology
 
 ### Commitment
@@ -356,7 +365,7 @@ The old HTTP client migration files have been removed from the package source an
 
 The current deployed roulette app uses the old npm API and its own VPS node/server. It can remain unchanged while this package evolves.
 
-A new roulette consumer should be cloned/adapted separately and should use the package like an external developer:
+The in-repo `examples/roulette-poc/` consumer should be adapted to use the package like an external developer:
 
 ```js
 import { verifyProofBundle } from 'kaspa-pof-api';
