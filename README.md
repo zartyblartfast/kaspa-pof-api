@@ -18,7 +18,7 @@ This initial commit deliberately contains only a migration basis:
 - `src/index.mjs` currently re-exports that adapter so the copied roulette example can load through the new package name.
 - `examples/roulette-poc/` copied from the current roulette PoC and adjusted to import `kaspa-pof-api` through an import map.
 - `references/` contains selected source-project docs for migration context.
-- `docs/` contains the new target architecture and handover notes.
+- `docs/` contains the new target architecture, package specification, next-phase plan, and handover notes.
 
 Do not treat the legacy HTTP client as the desired final architecture. It is present so the new repo has a working baseline and a known comparison point while direct package/runtime/verifier APIs are extracted.
 

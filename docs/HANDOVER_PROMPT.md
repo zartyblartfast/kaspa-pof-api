@@ -65,6 +65,8 @@ src/http-client.d.ts
 src/index.mjs
 examples/roulette-poc/
 docs/ARCHITECTURE.md
+docs/PACKAGE_SPEC.md
+docs/NEXT_PHASE_PLAN.md
 docs/HANDOVER_PROMPT.md
 references/
 ```
