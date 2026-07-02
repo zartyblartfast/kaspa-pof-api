@@ -1,0 +1,74 @@
+{
+  "schema": "kaspa-pof-api/proof/v1",
+  "claimLevel": "tn10_proof_root_anchored",
+  "network": {
+    "family": "kaspa",
+    "networkId": "testnet-10",
+    "label": "kaspa-tn10"
+  },
+  "round": {
+    "roundId": "live-proof-root-round-2026-07-02-001",
+    "appId": "kaspa-pof-api-live-proof-root-sample"
+  },
+  "commitment": {
+    "algorithm": "sha256",
+    "serverSeedHash": "e05c39f25d5512c912f1c14cdb32fe3be5b751c578e7938f54d93129e98be396"
+  },
+  "ledger": {
+    "algorithm": "stable-json-sha256",
+    "entries": [
+      {
+        "participant": "alice",
+        "input": "A",
+        "weight": 1
+      },
+      {
+        "participant": "bob",
+        "input": "B",
+        "weight": 2
+      },
+      {
+        "participant": "carol",
+        "input": "C",
+        "weight": 3
+      }
+    ],
+    "ledgerHash": "235869e4b6f16a28e09d8d95287fa8dcc58f3b439434ea944d12ca0d8a87e6fd"
+  },
+  "entropy": {
+    "algorithm": "sha256",
+    "target": {
+      "metric": "daaScore",
+      "score": "9000"
+    },
+    "block": {
+      "networkId": "testnet-10",
+      "blockHash": "000000000000000000000000000000000000000000000000000000000000cafe",
+      "daaScore": "9002",
+      "blueScore": "12002"
+    },
+    "entropyHash": "8adf89f52d5cd6e8dfc21b03feca427738d0ec7e3a55f606b8d5cf8278e4cb4e",
+    "source": "sha256(roundId|commitment|clientSeed|ledgerHash|blockHash|daaScore|blueScore)"
+  },
+  "reveal": {
+    "serverSeed": "live proof-root anchored sample server seed 2026-07-02",
+    "clientSeed": "live proof-root anchored sample client seed 2026-07-02"
+  },
+  "anchors": [
+    {
+      "networkId": "testnet-10",
+      "phase": "proof-root",
+      "txid": "93d6ac35f170da06d9977ce81be29e0503ac7f46e65a0d32c2f2b7bb0338e3cb",
+      "acceptingBlockHash": "cfb412ec2c0d8cdc3a7de2f6b7f2cc6cc7546dfe73e168776c698b9b40d5ed0b",
+      "payloadHash": "5a99cfa78d77f965a0b760ee979c87a388b7a63f017de19c04968f4eb66308d7",
+      "submittedTransactionEvidence": {
+        "networkId": "testnet-10",
+        "phase": "proof-root",
+        "txid": "93d6ac35f170da06d9977ce81be29e0503ac7f46e65a0d32c2f2b7bb0338e3cb",
+        "acceptingBlockHash": "cfb412ec2c0d8cdc3a7de2f6b7f2cc6cc7546dfe73e168776c698b9b40d5ed0b",
+        "payloadHex": "7b226e6574776f726b4964223a22746573746e65742d3130222c227061796c6f6164223a7b22636c61696d4c6576656c223a22746e31305f70726f6f665f726f6f745f616e63686f726564222c226e6574776f726b4964223a22746573746e65742d3130222c2270726f6f66526f6f74223a2262373764353462356331396635373835386437313466366364623334323836656132353231353431633135316535373063353833323039623438666534326263222c2270726f6f66526f6f74416c676f726974686d223a22737461626c652d6a736f6e2d736861323536222c2270726f6f66536368656d61223a226b617370612d706f662d6170692f70726f6f662f7631222c22726f756e644964223a226c6976652d70726f6f662d726f6f742d726f756e642d323032362d30372d30322d303031222c22736368656d61223a226b617370612d706f662d6170692f70726f6f662d726f6f742d616e63686f722f7631227d2c227068617365223a2270726f6f662d726f6f74222c22736368656d61223a226b617370612d706f662d6170692f616e63686f722d7472616e73616374696f6e2f7631227d",
+        "payloadHash": "5a99cfa78d77f965a0b760ee979c87a388b7a63f017de19c04968f4eb66308d7"
+      }
+    }
+  ]
+}

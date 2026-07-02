@@ -65,7 +65,14 @@ import {
   verifyCommitment,
   hashLedger,
   deriveEntropyHash,
+  deriveOutcome,
+  verifyOutcome,
   validateKaspaBlockEvidence,
+  validateAnchorEvidence,
+  validateSubmittedAnchorTransactionEvidence,
+  estimateTn10AnchorFee,
+  validateTn10BroadcastPolicy,
+  submitTn10AnchorTransaction,
   verifyFairnessProof,
   verifyProofBundle,
   verifyProofOfFairness
@@ -101,6 +108,7 @@ type ClaimLevel =
   | 'tn10_future_entropy'
   | 'mainnet_future_entropy'
   | 'tn10_tx_anchored'
+  | 'tn10_proof_root_anchored'
   | 'mainnet_tx_anchored';
 ```
 
@@ -201,17 +209,93 @@ type OutcomeEvidence = {
 };
 ```
 
+### Outcome helper API
+
+The package exposes generic outcome helpers without hard-coding roulette or any other app rules:
+
+```ts
+deriveOutcome({ entropyHash, spec, derivers })
+verifyOutcome({ entropyHash, outcome, outcomeDerivers })
+```
+
+`spec.deriver` selects a caller-supplied deterministic deriver, and optional `spec.params` carries app-specific mapping parameters. The helper computes a stable `inputHash` over the entropy hash, deriver name, and params, then compares claimed outcome evidence against the derived result.
+
 ### AnchorEvidence
 
 ```ts
 type AnchorEvidence = {
   networkId: string;
-  phase: 'commit' | 'close' | 'reveal' | 'proof-root' | string;
+  phase: 'commit' | 'close' | 'reveal' | 'proof-root';
   txid: string;
   payloadHash?: string;
   acceptingBlockHash?: string;
 };
 ```
+
+For `tn10_tx_anchored` and `mainnet_tx_anchored`, the verifier currently requires `commit`, `close`, and `reveal` anchor phases. Each anchor must match the proof network, use a 64-character hex transaction id, and match the expected phase payload hash when the verifier can compute it. `proof-root` is an allowed optional phase. Evidence validation remains separate from transaction submission.
+
+### Submitted anchor transaction evidence
+
+The package also exposes `validateSubmittedAnchorTransactionEvidence()` for public, non-secret transaction evidence captured after a TN10 submission. It validates the submitted transaction's declared network, phase, txid, accepting block hash, payload hex/JSON, anchor payload schema, payload network/phase consistency, and payload hash binding.
+
+Current public live evidence:
+
+```text
+references/live-tn10-proof-root-anchor-evidence.json
+```
+
+That file records the successful TN10 proof-root smoke anchor txid and accepting block hash without private key material. It proves the submission/evidence-validation path, not a full proof-root-only fairness claim.
+
+### Proof-root-only claim model
+
+`tn10_proof_root_anchored` is implemented as a separate TN10 claim level. It does not weaken `tn10_tx_anchored`: existing `tn10_tx_anchored` proofs still require `commit`, `close`, and `reveal` anchors.
+
+A true proof-root-only model is represented by the explicit claim level:
+
+```ts
+type ClaimLevel = 'tn10_proof_root_anchored';
+```
+
+That claim means: one on-chain TN10 transaction commits to a canonical, recomputable root of the full proof bundle, and the verifier confirms the supplied proof recomputes to the same root committed by the transaction payload.
+
+Implemented behavior:
+
+1. Canonical payload schema: `kaspa-pof-api/proof-root-anchor/v1`.
+2. `computeProofRoot(proof)` hashes a stable canonical JSON proof subset and excludes anchor transaction evidence to avoid circular hashing.
+3. `buildProofRootAnchorPayload(proof)` includes `networkId`, `claimLevel`, `roundId`, `proofRoot`, `proofRootAlgorithm`, and proof schema metadata.
+4. `verifyFairnessProof()` accepts a single `proof-root` anchor for `tn10_proof_root_anchored` only when submitted transaction evidence decodes to the canonical proof-root payload and the recomputed root matches.
+5. Verification rejects modified proof bundles, mismatched payload roots, network/claim/round mismatches, malformed tx evidence, missing submitted payload, txid/accepting-block mismatches, and payload-hash mismatches.
+6. Live TN10 canonical proof-root evidence is stored in `references/live-tn10-proof-root-anchored-evidence.json`; the full sample proof that verifies through the package is stored in `references/live-tn10-proof-root-anchored-proof.json`.
+
+### TN10 transaction submission helpers
+
+The package exposes an explicit TN10-only submission path for anchoring payloads with testnet funds:
+
+```ts
+estimateTn10AnchorFee({ payloadBytes, priorityFeeSompi })
+validateTn10BroadcastPolicy({
+  networkId: 'testnet-10',
+  enableBroadcast: true,
+  acknowledgement: 'I understand this spends TN10 testnet funds',
+  privateKeyHex,
+  feeEstimate,
+  feeCapSompi
+})
+submitTn10AnchorTransaction({
+  phase: 'commit' | 'close' | 'reveal' | 'proof-root',
+  payload,
+  privateKeyHex,
+  amountSompi,
+  priorityFeeSompi,
+  feeCapSompi,
+  enableBroadcast: true,
+  acknowledgement: 'I understand this spends TN10 testnet funds'
+})
+```
+
+The submitter uses a caller-supplied Kaspa wasm kit or `KASPA_WASM_PKG` and creates/signs/submits through TN10 wRPC. It fails closed before signing/submission if the network is not `testnet-10`, the private key shape is invalid, broadcast is not explicitly enabled, the acknowledgement is missing, or the created transaction fee estimate exceeds `feeCapSompi`.
+
+No mainnet transaction submission helper exists. Mainnet paid anchoring remains design-only until a separate explicit fee/acknowledgement process is agreed.
 
 ## Verification rules draft
 
@@ -259,6 +343,8 @@ Examples:
 - Unknown outcome deriver: fail unless caller explicitly supplies it.
 - Ledger entry canonicalization mismatch: fail.
 - Anchor tx missing for `*_tx_anchored`: fail.
+- Missing required anchor phase, malformed txid, network mismatch, or payload hash mismatch: fail.
+- TN10 submit without explicit enablement, acknowledgement, private key shape, or fee cap: fail before signing/submission.
 
 ## Transport / adapter policy
 
@@ -300,6 +386,8 @@ Mainnet transaction anchoring must remain optional and should require:
 - configurable fee cap;
 - operator/user acknowledgement;
 - no hidden default broadcasting.
+
+Current package code implements guarded TN10 submission only. It does not implement mainnet submission.
 
 ## Compatibility note
 

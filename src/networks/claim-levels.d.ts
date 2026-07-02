@@ -3,6 +3,7 @@ export type ClaimLevel =
   | 'tn10_future_entropy'
   | 'mainnet_future_entropy'
   | 'tn10_tx_anchored'
+  | 'tn10_proof_root_anchored'
   | 'mainnet_tx_anchored';
 
 export const CLAIM_LEVELS: readonly ClaimLevel[];

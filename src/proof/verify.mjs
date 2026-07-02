@@ -1,12 +1,16 @@
-import { verifyCommitment } from '../commitment.mjs';
+import { sha256Hex, verifyCommitment } from '../commitment.mjs';
 import { canonicalJson, verifyLedger } from '../ledger.mjs';
 import { verifyEntropyHash } from '../entropy.mjs';
+import { verifyOutcome } from '../outcome.mjs';
+import { validateAnchorEvidence, validateSubmittedAnchorTransactionEvidence } from '../anchoring/evidence.mjs';
 import { validateClaimLevel } from '../networks/claim-levels.mjs';
 import { validateKaspaBlockEvidence } from '../networks/kaspa-evidence.mjs';
+import { PROOF_ROOT_ALGORITHM, PROOF_ROOT_ANCHOR_PAYLOAD_SCHEMA_V1, computeProofRoot } from './root.mjs';
 
 const PROOF_SCHEMA_V1 = 'kaspa-pof-api/proof/v1';
 const TX_ANCHORED_CLAIM_LEVELS = new Set(['tn10_tx_anchored', 'mainnet_tx_anchored']);
 const FUTURE_ENTROPY_CLAIM_LEVELS = new Set(['tn10_future_entropy', 'mainnet_future_entropy']);
+const PROOF_ROOT_ANCHORED_CLAIM_LEVELS = new Set(['tn10_proof_root_anchored']);
 
 function verifyFairnessProof(proof, options = {}) {
   const checks = [];
@@ -44,13 +48,17 @@ function verifyFairnessProof(proof, options = {}) {
   verifyCommitmentEvidence(proof, checks, errors);
   verifyLedgerEvidence(proof, checks, errors);
 
-  if (FUTURE_ENTROPY_CLAIM_LEVELS.has(claimLevel) || TX_ANCHORED_CLAIM_LEVELS.has(claimLevel)) {
+  if (FUTURE_ENTROPY_CLAIM_LEVELS.has(claimLevel) || TX_ANCHORED_CLAIM_LEVELS.has(claimLevel) || PROOF_ROOT_ANCHORED_CLAIM_LEVELS.has(claimLevel)) {
     verifyKaspaEvidence(proof, checks, errors);
     verifyEntropyEvidence(proof, checks, errors);
   }
 
   if (TX_ANCHORED_CLAIM_LEVELS.has(claimLevel)) {
     verifyAnchorEvidence(proof, checks, errors);
+  }
+
+  if (PROOF_ROOT_ANCHORED_CLAIM_LEVELS.has(claimLevel)) {
+    verifyProofRootAnchorEvidence(proof, checks, errors);
   }
 
   if (proof.outcome !== undefined) {
@@ -131,63 +139,142 @@ function verifyEntropyEvidence(proof, checks, errors) {
 }
 
 function verifyAnchorEvidence(proof, checks, errors) {
-  const anchors = proof.anchors;
-  const ok = Array.isArray(anchors) && anchors.length > 0 && anchors.every((anchor) => anchor && typeof anchor.txid === 'string' && anchor.txid.trim());
+  const result = validateAnchorEvidence({
+    claimLevel: proof.claimLevel,
+    network: proof.network,
+    anchors: proof.anchors,
+    payloadHashes: buildAnchorPayloadHashes(proof)
+  });
+
   pushCheck(
     checks,
     errors,
     'anchors',
-    ok,
-    'KASPA_POF_ANCHOR_EVIDENCE_MISSING',
-    'transaction-anchored claim levels require at least one anchor with a txid'
+    result.ok,
+    result.code || 'KASPA_POF_ANCHOR_EVIDENCE_INVALID',
+    result.message || 'transaction-anchored claim levels require valid anchor evidence',
+    result.ok ? {
+      requiredPhases: result.requiredPhases,
+      presentPhases: result.presentPhases
+    } : { phase: result.phase, missingPhase: result.missingPhase }
   );
 }
 
+function verifyProofRootAnchorEvidence(proof, checks, errors) {
+  const proofRootAnchors = Array.isArray(proof.anchors) ? proof.anchors.filter((anchor) => anchor && anchor.phase === 'proof-root') : [];
+  const anchor = proofRootAnchors[0];
+  if (!anchor) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_ANCHOR_MISSING', 'tn10_proof_root_anchored requires one proof-root anchor');
+    return;
+  }
+  if (proofRootAnchors.length !== 1) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_ANCHOR_DUPLICATE', 'tn10_proof_root_anchored requires exactly one proof-root anchor');
+    return;
+  }
+  if (anchor.networkId !== proof.network.networkId) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_ANCHOR_NETWORK_MISMATCH', 'proof-root anchor networkId does not match proof networkId', { phase: 'proof-root' });
+    return;
+  }
+  if (!isHex64(anchor.txid)) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_TXID_INVALID', 'proof-root anchor txid must be a 64-character hex string', { phase: 'proof-root' });
+    return;
+  }
+  if (!isHex64(anchor.acceptingBlockHash)) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_ACCEPTING_BLOCK_INVALID', 'proof-root anchor acceptingBlockHash must be a 64-character hex string', { phase: 'proof-root' });
+    return;
+  }
+  if (!anchor.submittedTransactionEvidence || typeof anchor.submittedTransactionEvidence !== 'object' || Array.isArray(anchor.submittedTransactionEvidence)) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_SUBMITTED_EVIDENCE_MISSING', 'proof-root anchor requires submitted transaction evidence with payloadHex', { phase: 'proof-root' });
+    return;
+  }
+
+  const submitted = validateSubmittedAnchorTransactionEvidence(anchor.submittedTransactionEvidence);
+  if (!submitted.ok) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, submitted.code || 'KASPA_POF_PROOF_ROOT_SUBMITTED_EVIDENCE_INVALID', submitted.message || 'proof-root submitted transaction evidence is invalid', { phase: 'proof-root' });
+    return;
+  }
+  if (submitted.txid !== anchor.txid.toLowerCase()) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_TXID_MISMATCH', 'proof-root anchor txid does not match submitted transaction evidence txid', { phase: 'proof-root' });
+    return;
+  }
+  if (submitted.acceptingBlockHash !== anchor.acceptingBlockHash.toLowerCase()) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_ACCEPTING_BLOCK_MISMATCH', 'proof-root anchor acceptingBlockHash does not match submitted transaction evidence', { phase: 'proof-root' });
+    return;
+  }
+  if (anchor.payloadHash !== submitted.payloadHash) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_PAYLOAD_HASH_MISMATCH', 'proof-root anchor payloadHash does not match submitted transaction payload hash', { phase: 'proof-root' });
+    return;
+  }
+
+  const payload = submitted.payloadObject && submitted.payloadObject.payload;
+  const root = computeProofRoot(proof);
+  const payloadValidation = validateProofRootPayload({ proof, payload, root });
+  if (!payloadValidation.ok) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, payloadValidation.code, payloadValidation.message, { phase: 'proof-root' });
+    return;
+  }
+
+  pushCheck(checks, errors, 'proofRootAnchor', true, 'KASPA_POF_PROOF_ROOT_ANCHOR_INVALID', 'proof-root anchor evidence is valid', {
+    phase: 'proof-root',
+    proofRoot: root,
+    txid: submitted.txid,
+    acceptingBlockHash: submitted.acceptingBlockHash
+  });
+}
+
+function validateProofRootPayload({ proof, payload, root }) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_INVALID', 'proof-root transaction payload must contain a proof-root payload object');
+  if (payload.schema !== PROOF_ROOT_ANCHOR_PAYLOAD_SCHEMA_V1) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_SCHEMA_INVALID', 'proof-root payload schema is unsupported');
+  if (payload.proofRootAlgorithm !== PROOF_ROOT_ALGORITHM) return fail('KASPA_POF_PROOF_ROOT_ALGORITHM_UNSUPPORTED', 'proof-root payload algorithm is unsupported');
+  if (payload.proofSchema !== proof.schema) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_PROOF_SCHEMA_MISMATCH', 'proof-root payload proofSchema does not match proof schema');
+  if (payload.networkId !== proof.network.networkId) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_NETWORK_MISMATCH', 'proof-root payload networkId does not match proof networkId');
+  if (payload.claimLevel !== proof.claimLevel) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_CLAIM_MISMATCH', 'proof-root payload claimLevel does not match proof claimLevel');
+  if (payload.roundId !== proof.round.roundId) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_ROUND_MISMATCH', 'proof-root payload roundId does not match proof roundId');
+  if (payload.proofRoot !== root) return fail('KASPA_POF_PROOF_ROOT_MISMATCH', 'proof-root payload proofRoot does not match recomputed proof root');
+  return { ok: true };
+}
+
+function buildAnchorPayloadHashes(proof) {
+  const hashes = {};
+  if (proof.commitment && typeof proof.commitment.serverSeedHash === 'string') {
+    hashes.commit = proof.commitment.serverSeedHash;
+  }
+  if (proof.ledger && typeof proof.ledger.ledgerHash === 'string') {
+    hashes.close = proof.ledger.ledgerHash;
+  }
+  if (proof.reveal !== undefined) {
+    hashes.reveal = sha256Hex(canonicalJson(proof.reveal));
+  }
+  const proofRootPayload = {
+    schema: proof.schema,
+    claimLevel: proof.claimLevel,
+    network: proof.network,
+    round: proof.round,
+    commitment: proof.commitment,
+    ledger: proof.ledger,
+    entropy: proof.entropy,
+    reveal: proof.reveal
+  };
+  if (proof.outcome !== undefined) proofRootPayload.outcome = proof.outcome;
+  hashes['proof-root'] = sha256Hex(canonicalJson(proofRootPayload));
+  return hashes;
+}
+
 function verifyOutcomeEvidence(proof, options, checks, errors) {
-  const outcome = proof.outcome;
-  const deriverName = outcome && outcome.deriver;
-  const derivers = options && options.outcomeDerivers && typeof options.outcomeDerivers === 'object'
-    ? options.outcomeDerivers
-    : {};
-  const deriver = typeof deriverName === 'string' ? derivers[deriverName] : undefined;
+  const result = verifyOutcome({
+    entropyHash: proof.entropy && proof.entropy.entropyHash,
+    outcome: proof.outcome,
+    outcomeDerivers: options && options.outcomeDerivers
+  });
 
-  if (typeof deriver !== 'function') {
-    pushCheck(
-      checks,
-      errors,
-      'outcome',
-      false,
-      'KASPA_POF_UNKNOWN_OUTCOME_DERIVER',
-      `No outcome deriver supplied for ${String(deriverName)}`
-    );
-    return;
-  }
-
-  let derived;
-  try {
-    derived = deriver({ proof, entropyHash: proof.entropy && proof.entropy.entropyHash });
-  } catch (error) {
-    pushCheck(
-      checks,
-      errors,
-      'outcome',
-      false,
-      'KASPA_POF_OUTCOME_DERIVER_FAILED',
-      error && error.message ? error.message : 'Outcome deriver failed'
-    );
-    return;
-  }
-
-  const inputHashMatches = !('inputHash' in outcome) || derived.inputHash === outcome.inputHash;
-  const resultMatches = canonicalJson(derived.result) === canonicalJson(outcome.result);
   pushCheck(
     checks,
     errors,
     'outcome',
-    inputHashMatches && resultMatches,
-    'KASPA_POF_OUTCOME_MISMATCH',
-    'outcome evidence does not match supplied outcome deriver result',
-    { deriver: deriverName }
+    result.ok,
+    result.code || 'KASPA_POF_OUTCOME_MISMATCH',
+    result.message || 'outcome evidence does not match supplied outcome deriver result',
+    { deriver: result.deriver, inputHash: result.inputHash }
   );
 }
 
@@ -205,6 +292,14 @@ function buildResult(ok, claimLevel, checks, errors) {
     checks,
     errors
   };
+}
+
+function isHex64(value) {
+  return typeof value === 'string' && /^[0-9a-f]{64}$/i.test(value);
+}
+
+function fail(code, message) {
+  return { ok: false, code, message };
 }
 
 export {

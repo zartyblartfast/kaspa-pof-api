@@ -37,12 +37,16 @@ Reusable, app-agnostic modules:
 - future entropy targets
 - Kaspa/TN10/mainnet evidence schemas
 - entropy derivation
+- app-defined outcome derivation helpers
 - proof bundle construction
 - proof verification
 - claim-level validation
 - outcome derivation hooks
 - optional tx anchor payload builders
+- tx anchor evidence validators
+- submitted tx anchor evidence validators
 - optional fee estimation helpers
+- explicit TN10-only tx anchor submitter guarded by fee cap and acknowledgement
 
 ### Consumer app layer
 
@@ -68,6 +72,8 @@ A VPS/Node/Python/Vercel service can remain useful for:
 
 But it should not be required to independently verify fairness.
 
+The package may expose explicit TN10 transaction-anchor submission helpers because TN10 spends testnet funds and is useful for proof-of-fairness anchoring. That path must remain opt-in and fail closed unless the caller supplies a TN10 private key, explicit broadcast enablement, the acknowledgement phrase, and a fee cap that covers the created transaction summary. No mainnet submitter exists in the package.
+
 ## Claim levels to design
 
 Initial claim levels should distinguish cost/trust tradeoffs clearly:
@@ -84,6 +90,9 @@ mainnet_future_entropy
 
 tn10_tx_anchored
   commit/close/reveal or compact anchors written to TN10; spends testnet funds.
+
+tn10_proof_root_anchored
+  one TN10 transaction commits to a canonical, recomputable root of the full proof bundle. This is a formal claim level with proof-root payload schema and verifier rules, not a loose interpretation of the optional proof-root phase.
 
 mainnet_tx_anchored
   optional paid mainnet anchoring; spends real KAS; must be explicitly enabled and fee-capped.

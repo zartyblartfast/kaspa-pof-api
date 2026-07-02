@@ -102,6 +102,8 @@ Acceptance criteria:
 
 ## Workstream 3: Add app-defined outcome hooks
 
+Status: initial generic helper API implemented in `src/outcome.*` and integrated with `verifyFairnessProof()`.
+
 The package should not know only roulette.
 
 Planned files:
@@ -116,8 +118,8 @@ test/roulette-outcome.test.mjs
 Core package should expose generic helpers:
 
 ```js
-deriveOutcome({ entropyHash, outcomeSpec })
-registerOutcomeDeriver(name, fn)
+deriveOutcome({ entropyHash, spec, derivers })
+verifyOutcome({ entropyHash, outcome, outcomeDerivers })
 ```
 
 Roulette may be included as an example/default deriver, but app developers must be able to supply their own deterministic outcome mapping.
@@ -199,6 +201,8 @@ Acceptance criteria:
 
 ## Workstream 7: Mainnet anchoring design only
 
+Status: evidence validation for existing tx-anchored claim levels is implemented. TN10-only fee policy and guarded transaction-anchor submission are implemented. Mainnet transaction submission remains future work and must stay explicit.
+
 Do not implement mainnet write paths in this phase. Specify them.
 
 Planned files:
@@ -221,6 +225,45 @@ Acceptance criteria:
 - No mainnet transaction submission code.
 - Fee estimate shapes are documented.
 - Paid anchoring is clearly optional.
+
+## Workstream 8: Formal proof-root-only TN10 claim model
+
+Status: implemented. Current `proof-root` remains an optional anchor phase for `tn10_tx_anchored`, while the separate `tn10_proof_root_anchored` claim level makes one TN10 transaction sufficient only when it commits to a canonical recomputable root of the full proof bundle.
+
+The earlier live TN10 proof-root tx in `references/live-tn10-proof-root-anchor-evidence.json` remains a smoke anchor proving the broadcast/evidence path. The canonical proof-root-only demonstration is now in `references/live-tn10-proof-root-anchored-evidence.json` and `references/live-tn10-proof-root-anchored-proof.json`.
+
+Implemented files:
+
+```text
+src/proof/root.mjs
+src/proof/root.cjs
+src/proof/root.d.ts
+test/proof-root.test.mjs
+test/proof-root-cjs.test.cjs
+```
+
+Implemented API:
+
+```js
+computeProofRoot(proof)
+buildProofRootAnchorPayload(proof)
+```
+
+Verifier behavior:
+
+- adds `tn10_proof_root_anchored` as a separate claim level;
+- recomputes proof root from a stable canonical subset of the proof;
+- excludes anchor tx evidence from the root to avoid circularity;
+- requires a single `proof-root` anchor with submitted transaction evidence;
+- checks payload schema, network, claim level, round id, proof schema, proof root, txid, accepting block hash, and payload hash binding;
+- fails closed on any mismatch or missing evidence.
+
+Acceptance criteria:
+
+- A proof with a matching single proof-root anchor verifies without `commit`/`close`/`reveal` tx anchors.
+- Mutating commitment, ledger, entropy, reveal, or outcome data changes the root and fails verification.
+- Wrong network, claim level, round id, payload schema, payload root, txid, accepting block hash, or payload hash fails verification.
+- A new live TN10 transaction was submitted with a canonical proof-root payload for a sample full proof bundle, and that exact evidence verifies through the package.
 
 ## Verification commands
 
@@ -254,11 +297,12 @@ KASPA_POF_ROULETTE_LOCAL_VERIFY=PASS
 3. Add `hashLedger()` with tests.
 4. Add `deriveEntropyHash()` with tests using explicit inline evidence.
 5. Add `verifyProofBundle()` for commitment/ledger/entropy consistency.
-6. Add app-defined outcome helper APIs and optional roulette example deriver outside package core assumptions.
+6. Add app-defined outcome helper APIs outside package core assumptions. DONE for the generic helper API; optional roulette example remains separate/future.
 7. Document claim levels and mainnet anchoring policy.
-8. Add paid anchor payload/fee policy interfaces without hidden broadcasting.
-9. Create/adapt a separate new roulette consumer that calls local verification.
-10. Commit after each coherent milestone.
+8. Add paid anchor payload/fee policy interfaces without hidden broadcasting. Anchor evidence validation and guarded TN10 submission are implemented; mainnet write design remains future work.
+9. Implement the formal proof-root-only TN10 claim model described in Workstream 8 if the next priority remains proof-root-only anchoring.
+10. Create/adapt a separate new roulette consumer that calls local verification.
+11. Commit only when the user asks; the user has allowed skipping commits across several related tasks.
 
 ## Open questions
 
@@ -266,3 +310,4 @@ KASPA_POF_ROULETTE_LOCAL_VERIFY=PASS
 - Should roulette outcome derivation be part of the core package or an example plugin?
 - What finality depth should `mainnet_future_entropy` require?
 - Should the package name published to npm be `kaspa-pof-api`, or should this repo eventually publish scoped packages?
+- Should the proof-root-only claim level be named `tn10_proof_root_anchored`, or should a different explicit claim-level name be used?

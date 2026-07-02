@@ -46,6 +46,16 @@ describe('Kaspa block evidence validation', () => {
     assert.equal(result.targetMetric, 'blueScore');
   });
 
+  it('accepts TN10 transaction-anchored claim levels with matching block evidence', () => {
+    const result = validateKaspaBlockEvidence({
+      ...validTn10Evidence,
+      claimLevel: 'tn10_tx_anchored'
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.claimLevel, 'tn10_tx_anchored');
+  });
+
   it('fails closed for network mismatch', () => {
     const result = validateKaspaBlockEvidence({
       ...validTn10Evidence,

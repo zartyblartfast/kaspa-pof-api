@@ -124,6 +124,29 @@ describe('generalized fairness proof verification', () => {
     assert.equal(result.checks.find((check) => check.name === 'outcome').ok, true);
   });
 
+  it('passes outcome params and deterministic input hash to proof outcome derivers', () => {
+    const proof = buildProof();
+    proof.outcome = {
+      deriver: 'example:param-modulo',
+      params: { modulo: 10 },
+      result: { value: Number(BigInt(`0x${proof.entropy.entropyHash.slice(0, 16)}`) % 10n) }
+    };
+
+    const result = verifyFairnessProof(proof, {
+      outcomeDerivers: {
+        'example:param-modulo': ({ entropyHash, params, inputHash }) => {
+          assert.equal(params.modulo, 10);
+          assert.equal(typeof inputHash, 'string');
+          assert.equal(inputHash.length, 64);
+          return { value: Number(BigInt(`0x${entropyHash.slice(0, 16)}`) % BigInt(params.modulo)) };
+        }
+      }
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.checks.find((check) => check.name === 'outcome').ok, true);
+  });
+
   it('fails closed when outcome evidence exists but no deriver is supplied', () => {
     const result = verifyFairnessProof(buildProof({
       outcome: { deriver: 'missing:deriver', inputHash: 'abc', result: { value: 1 } }
@@ -131,6 +154,35 @@ describe('generalized fairness proof verification', () => {
 
     assert.equal(result.ok, false);
     assert.equal(result.errors.some((error) => error.code === 'KASPA_POF_UNKNOWN_OUTCOME_DERIVER'), true);
+  });
+
+  it('verifies a generic TN10 transaction-anchored proof with required anchor phases', () => {
+    const txid = 'a'.repeat(64);
+    const proof = buildProof({ claimLevel: 'tn10_tx_anchored' });
+    proof.anchors = [
+      { networkId: 'testnet-10', phase: 'commit', txid, payloadHash: proof.commitment.serverSeedHash },
+      { networkId: 'testnet-10', phase: 'close', txid: 'b'.repeat(64), payloadHash: proof.ledger.ledgerHash },
+      { networkId: 'testnet-10', phase: 'reveal', txid: 'c'.repeat(64), payloadHash: createHash('sha256').update('{"clientSeed":"general fairness client seed","serverSeed":"general fairness server seed"}', 'utf8').digest('hex') }
+    ];
+
+    const result = verifyFairnessProof(proof);
+
+    assert.equal(result.ok, true);
+    assert.equal(result.checks.find((check) => check.name === 'anchors').ok, true);
+  });
+
+  it('fails closed for a transaction-anchored proof with mismatched anchor payload evidence', () => {
+    const proof = buildProof({ claimLevel: 'tn10_tx_anchored' });
+    proof.anchors = [
+      { networkId: 'testnet-10', phase: 'commit', txid: 'a'.repeat(64), payloadHash: proof.commitment.serverSeedHash },
+      { networkId: 'testnet-10', phase: 'close', txid: 'b'.repeat(64), payloadHash: proof.ledger.ledgerHash },
+      { networkId: 'testnet-10', phase: 'reveal', txid: 'c'.repeat(64), payloadHash: '0'.repeat(64) }
+    ];
+
+    const result = verifyFairnessProof(proof);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.errors.some((error) => error.code === 'KASPA_POF_ANCHOR_PAYLOAD_HASH_MISMATCH'), true);
   });
 });
 

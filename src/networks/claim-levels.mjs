@@ -3,6 +3,7 @@ const CLAIM_LEVELS = Object.freeze([
   'tn10_future_entropy',
   'mainnet_future_entropy',
   'tn10_tx_anchored',
+  'tn10_proof_root_anchored',
   'mainnet_tx_anchored'
 ]);
 
@@ -14,6 +15,7 @@ const FUTURE_ENTROPY_CLAIM_LEVELS = Object.freeze([
 const CLAIM_LEVEL_NETWORKS = Object.freeze({
   tn10_future_entropy: 'testnet-10',
   tn10_tx_anchored: 'testnet-10',
+  tn10_proof_root_anchored: 'testnet-10',
   mainnet_future_entropy: 'mainnet',
   mainnet_tx_anchored: 'mainnet'
 });

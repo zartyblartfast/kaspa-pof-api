@@ -14,12 +14,14 @@ describe('claim level primitives', () => {
       'tn10_future_entropy',
       'mainnet_future_entropy',
       'tn10_tx_anchored',
+      'tn10_proof_root_anchored',
       'mainnet_tx_anchored'
     ]);
   });
 
   it('recognizes known claim levels', () => {
     assert.equal(isKnownClaimLevel('tn10_future_entropy'), true);
+    assert.equal(isKnownClaimLevel('tn10_proof_root_anchored'), true);
     assert.equal(isKnownClaimLevel('unknown_claim'), false);
   });
 

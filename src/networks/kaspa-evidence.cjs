@@ -2,11 +2,18 @@
 
 const { CLAIM_LEVEL_NETWORKS, FUTURE_ENTROPY_CLAIM_LEVELS, validateClaimLevel } = require('./claim-levels.cjs');
 
+const BLOCK_EVIDENCE_CLAIM_LEVELS = Object.freeze([
+  ...FUTURE_ENTROPY_CLAIM_LEVELS,
+  'tn10_tx_anchored',
+  'tn10_proof_root_anchored',
+  'mainnet_tx_anchored'
+]);
+
 function validateKaspaBlockEvidence({ claimLevel, network, target, block } = {}) {
   const claimValidation = validateClaimLevel(claimLevel);
   if (!claimValidation.ok) return claimValidation;
 
-  if (!FUTURE_ENTROPY_CLAIM_LEVELS.includes(claimLevel)) {
+  if (!BLOCK_EVIDENCE_CLAIM_LEVELS.includes(claimLevel)) {
     return {
       ok: false,
       code: 'KASPA_POF_CLAIM_LEVEL_REQUIRES_NO_BLOCK_EVIDENCE',

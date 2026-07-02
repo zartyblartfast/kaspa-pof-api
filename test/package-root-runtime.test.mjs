@@ -12,7 +12,15 @@ describe('package root runtime API', () => {
       'verifyLedger',
       'deriveEntropyHash',
       'verifyEntropyHash',
+      'deriveOutcome',
+      'computeProofRoot',
+      'buildProofRootAnchorPayload',
+      'verifyOutcome',
       'validateKaspaBlockEvidence',
+      'validateAnchorEvidence',
+      'validateSubmittedAnchorTransactionEvidence',
+      'validateTn10BroadcastPolicy',
+      'submitTn10AnchorTransaction',
       'verifyFairnessProof'
     ]) {
       assert.equal(typeof api[name], 'function', `${name} should be a root function export`);

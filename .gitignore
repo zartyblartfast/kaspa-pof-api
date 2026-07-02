@@ -1,0 +1,9 @@
+# Local-only secret material and generated live testnet keys
+local-secrets/
+
+# npm pack output
+*.tgz
+
+# Dependency/build outputs
+node_modules/
+coverage/

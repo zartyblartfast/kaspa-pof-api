@@ -1,4 +1,5 @@
 import type { ClaimLevel } from '../networks/claim-levels.d.ts';
+import type { OutcomeDeriver } from '../outcome.d.ts';
 
 export const PROOF_SCHEMA_V1: 'kaspa-pof-api/proof/v1';
 
@@ -20,18 +21,8 @@ export interface VerificationResult {
   errors: VerificationError[];
 }
 
-export interface OutcomeDeriverInput {
-  proof: unknown;
-  entropyHash?: string;
-}
-
-export interface OutcomeDeriverResult {
-  inputHash?: string;
-  result: unknown;
-}
-
 export interface VerifyFairnessProofOptions {
-  outcomeDerivers?: Record<string, (input: OutcomeDeriverInput) => OutcomeDeriverResult>;
+  outcomeDerivers?: Record<string, OutcomeDeriver>;
 }
 
 export function verifyFairnessProof(proof: unknown, options?: VerifyFairnessProofOptions): VerificationResult;

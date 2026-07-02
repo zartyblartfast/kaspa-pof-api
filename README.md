@@ -17,10 +17,16 @@ The package root is now runtime-first. It exports local proof-of-fairness primit
 - commitment hashing and verification;
 - canonical input ledger hashing and verification;
 - deterministic future-entropy hash derivation;
+- app-defined deterministic outcome derivation helpers;
 - TN10/mainnet claim-level and Kaspa block-evidence validation;
+- transaction-anchor evidence validation for explicit tx-anchored claim levels;
+- canonical proof-root-only TN10 claim verification via `tn10_proof_root_anchored`;
+- explicit TN10 transaction-anchor spend/fee policy helpers and guarded submission support;
 - generalized local proof verification through `verifyFairnessProof()` / `verifyProofBundle()` / `verifyProofOfFairness()`.
 
 The legacy `src/http-client.*` migration files have been removed from the package source and are not exported or published. Historical HTTP/server behavior remains available only through `references/` and the old `/root/kaspa-toccata-api` repo.
+
+See `docs/API.md` for runtime API examples, including `tn10_proof_root_anchored` proof-root verification.
 
 `examples/roulette-poc/` is copied migration/reference material from the old app lineage and is not the package authority. The current deployed roulette app can continue using its old npm API and VPS node/server unchanged. A new roulette consumer should be cloned/adapted separately to use this package runtime model.
 
@@ -33,11 +39,13 @@ The package should become general-purpose and app-agnostic:
 - future entropy target schemas
 - Kaspa/TN10/mainnet evidence validation
 - entropy derivation
-- result/outcome derivation hooks
+- result/outcome derivation helpers and hooks
 - portable proof bundle schemas
 - local proof verification
 - claim-level handling
 - optional transaction anchor payload construction and fee estimation
+- explicit TN10 transaction-anchor submission, gated by fee cap and acknowledgement
+- transaction anchor evidence validation
 
 Roulette-specific UI and game rules belong in a consumer app, not in the package core. A future roulette PoC may live under `examples/roulette-poc/` or a separate app/repo, but it must depend on the package rather than define it.
 
