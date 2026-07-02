@@ -15,12 +15,12 @@ Current package version:
 0.1.0-alpha.1
 ```
 
-Latest committed/pushed baseline before the current uncommitted roulette/example work:
+Latest committed/pushed baseline before the current uncommitted diagnostics refinements:
 
 ```text
+8cfe36b feat: verify roulette runtime consumer
 c37d211 Prepare alpha.1 publish readiness docs
 b15c773 Add runtime proof-root anchored verification
-207e898 Make package runtime-first proof verifier
 ```
 
 ## Implemented root API direction
@@ -52,7 +52,7 @@ verifyProofOfFairness()
 
 The package core must remain generalized and must not depend on roulette.
 
-## Roulette PoC work completed in this uncommitted milestone
+## Roulette PoC work completed in this milestone
 
 The in-repo `examples/roulette-poc/` has been adapted structurally into a TN10-backed package-runtime consumer.
 
@@ -95,11 +95,13 @@ docs/SESSION_HANDOVER_REMAINING_TASKS.md
 Roulette PoC details:
 
 - `examples/roulette-poc/server.cjs` is roulette-specific infrastructure, not package core.
-- It creates committed rounds, holds hidden server seed material, accepts locked chip ledgers, chooses a TN10 future entropy target, fetches real TN10 block evidence through rusty-kaspa WASM, assembles a portable `tn10_future_entropy` proof bundle, and sanity-checks it with `verifyFairnessProof()`.
+- It creates committed rounds, holds hidden server seed material, accepts locked chip ledgers, chooses a TN10 future entropy target, fetches real TN10 block evidence through rusty-kaspa WASM, races bounded TN10 WRPC endpoints with resolver fallback, streams SSE diagnostics, writes per-spin JSONL logs, assembles a portable `tn10_future_entropy` proof bundle, and sanity-checks it with `verifyFairnessProof()`.
 - `examples/roulette-poc/app.js` imports `kaspa-pof-api`, receives the proof bundle, supplies `roulette-poc:number-v1` as the app-specific outcome deriver, and verifies the proof in the browser.
 - The previous `local_bundle_only` browser-local entropy path was removed from the roulette PoC.
 - No trusted proof-verdict endpoint should be reintroduced.
 - Service/fetch paths are evidence plumbing only.
+- Endpoint racing is an availability/UX adapter concern and does not change the proof authority.
+- The diagnostics tile is always present, collapsed by default, greyed while idle, and keeps the roulette table from shifting when a spin starts.
 
 Run the example server from the repo root:
 
@@ -121,17 +123,25 @@ KASPA_WASM_PKG=/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kas
 node examples/roulette-poc/server.cjs
 ```
 
+Optional live RPC tuning:
+
+```text
+ROULETTE_KASPA_WRPC_ENDPOINTS=<comma-separated WRPC/Borsh endpoint URLs>
+ROULETTE_KASPA_WRPC_CONNECT_RACE_MS=3000
+ROULETTE_KASPA_WRPC_ENDPOINT_PENALTY_MS=120000
+```
+
 Open locally or through SSH forwarding:
 
 ```text
 http://127.0.0.1:8123/examples/roulette-poc/
 ```
 
-User confirmed they can see the page. A full live browser spin completion has not yet been recorded in this chat. Do not claim live spin verification until a real spin reaches the verified state.
+Live browser spins have reached `Browser package verified TN10 proof` with the package verifier result displayed in the UI. Recent endpoint-race diagnostics show sub-second to ~1.4s spin totals after avoiding slow single-endpoint connect paths.
 
 ## Latest verification evidence
 
-After the current roulette structural implementation and docs updates:
+After the roulette runtime-consumer, SSE diagnostics, bounded endpoint race, and diagnostics-tile stabilization work:
 
 ```bash
 npm run test
@@ -168,7 +178,7 @@ KASPA_POF_NO_FIXTURE_TRAPS=PASS
 KASPA_POF_SMOKE=PASS
 ```
 
-Earlier in this same session after roulette files were added:
+After the diagnostics-doc updates:
 
 ```text
 npm pack --dry-run: PASS
@@ -176,11 +186,11 @@ npm pack --dry-run: PASS
 package candidate: kaspa-pof-api-0.1.0-alpha.1.tgz
 ```
 
-Re-run `npm pack --dry-run` after this handover edit if package contents/publish readiness are part of the next step.
+Re-run `npm pack --dry-run` before any publish/package-content decision.
 
 ## Current git status expectation
 
-The current milestone is not committed unless the user asks. Expect uncommitted changes in docs, roulette example files, browser entrypoint, smoke script, and tests.
+This file may be stale after the requested commit/push. If continuing before that commit, expect uncommitted changes in docs, roulette example files, styles, `.gitignore`, and tests.
 
 Start `/new` with:
 

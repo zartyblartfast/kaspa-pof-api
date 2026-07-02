@@ -42,12 +42,12 @@ A server may create rounds, store state, fetch TN10/mainnet evidence, host files
 
 Package version: `0.1.0-alpha.1`.
 
-Latest committed/pushed baseline before this uncommitted roulette work:
+Latest committed/pushed baseline before the current uncommitted diagnostics refinements:
 
 ```text
+8cfe36b feat: verify roulette runtime consumer
 c37d211 Prepare alpha.1 publish readiness docs
 b15c773 Add runtime proof-root anchored verification
-207e898 Make package runtime-first proof verifier
 ```
 
 Root runtime exports include:
@@ -90,7 +90,7 @@ src/browser.mjs
 Architecture:
 
 - `examples/roulette-poc/server.cjs` is roulette-specific infrastructure.
-- It creates committed rounds, keeps hidden server seeds server-side, accepts locked chip ledgers, fetches real TN10 future-block evidence via rusty-kaspa WASM, assembles portable `tn10_future_entropy` proof bundles, and sanity-checks those bundles with the package runtime.
+- It creates committed rounds, keeps hidden server seeds server-side, accepts locked chip ledgers, fetches real TN10 future-block evidence via rusty-kaspa WASM, races bounded TN10 WRPC endpoints with resolver fallback, streams SSE diagnostics, writes per-spin JSONL logs, assembles portable `tn10_future_entropy` proof bundles, and sanity-checks those bundles with the package runtime.
 - The browser imports `kaspa-pof-api` through an import map to `/src/browser.mjs`.
 - The browser calls `verifyFairnessProof(proof, { outcomeDerivers })` itself and displays that package verifier result.
 - Roulette-specific outcome mapping remains in the example consumer via `roulette-poc:number-v1`; package core remains app-agnostic.
@@ -117,6 +117,14 @@ KASPA_WASM_PKG=/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kas
 node examples/roulette-poc/server.cjs
 ```
 
+Optional live RPC tuning:
+
+```text
+ROULETTE_KASPA_WRPC_ENDPOINTS=<comma-separated WRPC/Borsh endpoint URLs>
+ROULETTE_KASPA_WRPC_CONNECT_RACE_MS=3000
+ROULETTE_KASPA_WRPC_ENDPOINT_PENALTY_MS=120000
+```
+
 Open through SSH port forwarding if viewing from a laptop:
 
 ```bash
@@ -129,11 +137,11 @@ Then browse:
 http://127.0.0.1:8123/examples/roulette-poc/
 ```
 
-The user confirmed they can see the page. A full live create/spin browser proof completion was not yet recorded in this chat because an earlier local curl create/spin command was blocked by the approval layer. Do not claim live spin verification until you run and see it.
+The live browser create/place-chip/spin flow has been recorded. Expected successful final UI state is `Browser package verified TN10 proof` with claim level `tn10_future_entropy`; diagnostics remain collapsed/reserved so the roulette table stays visually stable during a spin.
 
 ## Latest verification evidence
 
-After the roulette structural implementation and documentation updates:
+After the roulette runtime-consumer, SSE diagnostics, bounded endpoint race, and diagnostics-tile stabilization work:
 
 ```text
 npm run test: PASS
@@ -145,12 +153,12 @@ npm run smoke: PASS
 KASPA_POF_ROULETTE_TN10_VERIFY=PASS
 KASPA_POF_SMOKE=PASS
 
-npm pack --dry-run: PASS earlier in this session after roulette files were added
+npm pack --dry-run: PASS after the diagnostics-doc updates
 53 files
 package candidate: kaspa-pof-api-0.1.0-alpha.1.tgz
 ```
 
-Re-run `npm pack --dry-run` after this handover edit if publish/package contents are part of the next step.
+Re-run `npm pack --dry-run` before any publish/package-content decision.
 
 ## User preferences / constraints
 
@@ -185,6 +193,6 @@ npm run smoke
 npm pack --dry-run
 ```
 
-3. If the user wants the roulette milestone finished, run the live example server and complete a real browser create/place-chip/spin flow, then record whether the browser reaches `Browser package verified TN10 proof` with claim level `tn10_future_entropy`.
+3. For any further roulette UI/server changes, run the live example server and complete a real browser create/place-chip/spin flow; record endpoint-race diagnostics and whether the browser reaches `Browser package verified TN10 proof` with claim level `tn10_future_entropy`.
 
-4. Ask whether to commit the verified roulette/doc milestone.
+4. Before publishing, re-run `npm pack --dry-run` and get explicit user agreement on package contents/version/auth state.

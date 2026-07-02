@@ -28,7 +28,7 @@ The legacy `src/http-client.*` migration files have been removed from the packag
 
 See `docs/API.md` for runtime API examples, including `tn10_proof_root_anchored` proof-root verification. See `docs/PUBLISH_READINESS.md` for package contents, npm registry/auth observations, and pre-publish decision points.
 
-`examples/roulette-poc/` is now the in-repo roulette consumer for this package runtime model. It includes a roulette-specific Node server for round orchestration, hidden seed custody, chip-ledger locking, and live TN10 evidence fetching, while the browser imports `kaspa-pof-api` and verifies the returned `tn10_future_entropy` proof bundle with `verifyFairnessProof()`. The server supplies evidence; it is not a proof-authority endpoint. The current deployed roulette app can continue using its old npm API and VPS node/server unchanged.
+`examples/roulette-poc/` is now the in-repo roulette consumer for this package runtime model. It includes a roulette-specific Node server for round orchestration, hidden seed custody, chip-ledger locking, live TN10 evidence fetching, SSE/JSONL diagnostics, and a bounded TN10 WRPC endpoint race for responsive public-node evidence access. The browser imports `kaspa-pof-api` and verifies the returned `tn10_future_entropy` proof bundle with `verifyFairnessProof()`. The server supplies evidence; it is not a proof-authority endpoint. The current deployed roulette app can continue using its old npm API and VPS node/server unchanged.
 
 ## Target package direction
 

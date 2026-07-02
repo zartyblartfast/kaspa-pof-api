@@ -24,6 +24,9 @@ import {
     clientSeed: '',
     busy: false,
     trace: {},
+    diagnostics: null,
+    diagnosticEvents: [],
+    spinEventSource: null,
     flowchartSpec: null,
     operation: {
       label: 'Preparing TN10 proof runtime',
@@ -47,6 +50,7 @@ import {
     spinButton: document.getElementById('spinButton'),
     resetButton: document.getElementById('resetButton'),
     liveProofStatusRoot: document.getElementById('liveProofStatusRoot'),
+    diagnosticsPanel: document.getElementById('diagnosticsPanel'),
     claimLevel: document.getElementById('claimLevel'),
     flowchartRoot: document.getElementById('flowchartRoot'),
     operationStatus: document.getElementById('operationStatus'),
@@ -97,7 +101,10 @@ import {
     state.selections = [];
     state.nextSelectionId = 1;
     state.clientSeed = `client-${randomHex(32)}`;
+    closeSpinEventSource();
     state.trace = {};
+    state.diagnostics = null;
+    state.diagnosticEvents = [];
     renderAll();
 
     try {
@@ -123,8 +130,11 @@ import {
     if (state.busy || !state.roundId || !canPlaceChips()) return;
     state.busy = true;
     state.stage = 'spinning';
-    setOperation('Spin started', 'Submitting the locked chip ledger, then waiting for real TN10 future block evidence. The browser will verify the returned proof bundle itself.', 'busy');
-    setStatus('Waiting for TN10-backed proof bundle…', null);
+    closeSpinEventSource();
+    state.diagnostics = null;
+    state.diagnosticEvents = [];
+    setOperation('Spin session starting', 'Submitting the locked chip ledger. The next status updates will stream from the roulette PoC server over SSE while it waits for real TN10 evidence.', 'busy');
+    setStatus('Starting TN10 diagnostic stream…', null);
     renderAll();
 
     try {
@@ -137,19 +147,29 @@ import {
       state.stage = 'closed';
       renderAll();
 
-      const payload = await rememberStep(
-        'proofBundle',
-        'Fetching TN10 evidence bundle',
-        'The server is fetching a future TN10 block and assembling the portable proof bundle. It does not return a proof-authority verdict for the browser to trust.',
-        fetchJson(`/examples/roulette-poc/rounds/${encodeURIComponent(state.roundId)}/spin`, {
+      const spinStart = performance.now();
+      const createdSpin = await rememberStep(
+        'spinSession',
+        'Creating SSE spin session',
+        'The server locks the chip ledger and starts a diagnostic TN10 proof workflow. The browser subscribes to streamed status events, not a proof verdict.',
+        fetchJson(`/examples/roulette-poc/rounds/${encodeURIComponent(state.roundId)}/spins`, {
           method: 'POST',
           body: JSON.stringify({ bets, clientSeed: state.clientSeed }),
         })
       );
+      state.diagnostics = createdSpin.diagnostics;
+      state.trace.spinLogPath = createdSpin.logPath;
+      appendDiagnosticEvent('spin_session_created', createdSpin);
+      setOperation('Diagnostic stream connected', `Spin ${createdSpin.spinId} started. Log: ${createdSpin.logPath || 'server runtime log pending'}.`, 'busy');
+      renderAll();
+
+      const payload = await consumeSpinEvents(createdSpin.eventsUrl);
       state.round = payload.round;
       state.proof = payload.proof;
       state.entropy = payload.proof.entropy;
+      state.trace.proofBundle = payload;
       state.trace.serverPackageCheck = payload.serverPackageCheck;
+      state.trace.proofBundleTiming = { seconds: Number(((performance.now() - spinStart) / 1000).toFixed(1)), label: 'SSE proof bundle ready' };
       state.stage = 'entropy';
       renderAll();
 
@@ -162,26 +182,127 @@ import {
       state.stage = 'revealed';
       renderAll();
 
+      const browserVerifyStarted = performance.now();
       const verification = verifyFairnessProof(state.proof, { outcomeDerivers: rouletteOutcomeDerivers });
+      const browserVerificationMs = Math.round(performance.now() - browserVerifyStarted);
       state.verification = verification;
+      state.diagnostics = { ...(state.diagnostics || {}), browserVerificationMs, browserStatus: verification.ok ? 'verified' : 'failed' };
+      appendDiagnosticEvent('browser_package_verification', { ok: verification.ok, browserVerificationMs });
       state.stage = verification.ok ? 'verified' : 'revealed';
       setOperation(
         verification.ok ? 'TN10 proof verified in browser' : 'Browser proof verification failed',
         verification.ok
-          ? 'kaspa-pof-api replayed commitment, ledger, TN10 block evidence, entropy, reveal, and roulette outcome in this browser.'
+          ? `kaspa-pof-api replayed commitment, ledger, TN10 block evidence, entropy, reveal, and roulette outcome in this browser. Browser verification took ${browserVerificationMs}ms.`
           : verification.errors.map((entry) => entry.message).join('; '),
         verification.ok ? 'pass' : 'fail'
       );
       setStatus(verification.ok ? 'Browser package verified TN10 proof' : 'Browser package proof failed', verification.ok);
     } catch (error) {
       rememberError('spinError', error);
+      appendDiagnosticEvent('spin_error', { message: error.message });
       setOperation('Spin failed', error.message, 'fail');
       setStatus(error.message, false);
     } finally {
+      closeSpinEventSource();
       state.busy = false;
       renderAll();
     }
   }
+
+  function consumeSpinEvents(eventsUrl) {
+    return new Promise((resolve, reject) => {
+      const source = new EventSource(eventsUrl);
+      state.spinEventSource = source;
+      let settled = false;
+      let lastEventAt = performance.now();
+      const stallTimer = setInterval(() => {
+        if (settled) return;
+        const silentMs = performance.now() - lastEventAt;
+        if (silentMs > 20000) {
+          appendDiagnosticEvent('sse_stalled', { message: `No diagnostic event for ${formatMs(silentMs)}.` });
+          setOperation('Diagnostic stream quiet', `No SSE event has arrived for ${formatMs(silentMs)}. The browser is still connected; this can indicate RPC stall or transport delay.`, 'warn');
+          renderAll();
+          lastEventAt = performance.now();
+        }
+      }, 5000);
+      const settle = (fn, value) => {
+        if (settled) return;
+        settled = true;
+        clearInterval(stallTimer);
+        source.close();
+        if (state.spinEventSource === source) state.spinEventSource = null;
+        fn(value);
+      };
+      const handleEvent = (eventName, event) => {
+        lastEventAt = performance.now();
+        const data = JSON.parse(event.data);
+        if (data.diagnostics) state.diagnostics = data.diagnostics;
+        appendDiagnosticEvent(eventName, data);
+        updateOperationFromSpinEvent(eventName, data);
+        if (eventName === 'proof_bundle_ready') settle(resolve, data);
+        if (eventName === 'error') settle(reject, new Error(data.error && data.error.message ? data.error.message : 'spin diagnostic stream failed'));
+        renderAll();
+      };
+      [
+        'spin_accepted',
+        'ledger_locked',
+        'tn10_target_selecting',
+        'tn10_target_selected',
+        'tn10_poll',
+        'tn10_slow',
+        'tn10_block_found',
+        'proof_assembling',
+        'rpc_session_starting',
+        'rpc_connecting',
+        'rpc_endpoint_connecting',
+        'rpc_endpoint_connected',
+        'rpc_endpoint_timeout',
+        'rpc_endpoint_error',
+        'rpc_endpoint_race_exhausted',
+        'rpc_resolver_connecting',
+        'rpc_connected',
+        'rpc_disconnecting',
+        'rpc_disconnected',
+        'server_package_check_complete',
+        'proof_bundle_ready',
+        'error',
+      ].forEach((eventName) => source.addEventListener(eventName, (event) => handleEvent(eventName, event)));
+      source.onerror = () => {
+        if (!settled) {
+          appendDiagnosticEvent('sse_transport_error', { message: 'SSE connection interrupted before final proof bundle.' });
+          renderAll();
+        }
+      };
+    });
+  }
+
+  function updateOperationFromSpinEvent(eventName, data) {
+    const diagnostics = data.diagnostics || state.diagnostics || {};
+    const elapsed = diagnostics.totalElapsedMs || data.elapsedMs;
+    const suffix = Number.isFinite(Number(elapsed)) ? ` Elapsed ${formatMs(elapsed)}.` : '';
+    const messages = {
+      spin_accepted: ['Spin accepted', 'Server accepted the spin session and opened diagnostic logging.'],
+      ledger_locked: ['Ledger locked', `Chip ledger hash ${shortText(data.ledgerHash)} is fixed before TN10 evidence is fetched.`],
+      tn10_target_selecting: ['Selecting TN10 target', 'Server is reading current TN10 DAA score before choosing the future entropy target.'],
+      tn10_target_selected: ['TN10 target selected', `Starting DAA ${data.currentDaaScore}; target DAA ${data.target && data.target.score}.`],
+      tn10_poll: ['Polling TN10', `Attempt ${data.attempt}: current DAA ${data.currentDaaScore}, target ${data.targetDaaScore}, RPC ${data.rpcMs}ms.${suffix}`],
+      tn10_slow: ['TN10 evidence slower than usual', `Polling is still active at attempt ${data.attempt}; current DAA ${data.currentDaaScore}, target ${data.targetDaaScore}.${suffix}`],
+      tn10_block_found: ['TN10 block found', `Block ${shortText(data.block && data.block.blockHash)} reached DAA ${data.block && data.block.daaScore}.`],
+      proof_assembling: ['Assembling proof bundle', 'Server is deriving entropy, roulette outcome evidence, and the portable proof bundle.'],
+      rpc_endpoint_connecting: ['Trying Kaspa endpoint', `${shortText(data.endpoint, 54)} has ${data.raceTimeoutMs}ms to connect.`],
+      rpc_endpoint_connected: ['Kaspa endpoint connected', `${shortText(data.endpoint, 54)} connected in ${data.connectMs}ms.`],
+      rpc_endpoint_timeout: ['Kaspa endpoint timed out', `${shortText(data.endpoint, 54)} exceeded ${data.connectMs}ms and is temporarily penalized.`],
+      rpc_endpoint_error: ['Kaspa endpoint failed', `${shortText(data.endpoint, 54)} failed: ${data.error || 'unknown error'}.`],
+      rpc_endpoint_race_exhausted: ['Endpoint race exhausted', 'No configured endpoint connected inside the bounded race; resolver fallback is next.'],
+      rpc_resolver_connecting: ['Resolver fallback connecting', 'Configured endpoints did not connect quickly; falling back to rusty-kaspa resolver.'],
+      server_package_check_complete: ['Server sanity-check complete', `Server package check passed in ${data.serverPackageCheck && data.serverPackageCheck.durationMs}ms; browser verification still decides the displayed result.`],
+      proof_bundle_ready: ['Proof bundle received', 'Browser is replaying the returned proof bundle locally with kaspa-pof-api.'],
+    };
+    const [label, detail] = messages[eventName] || [eventName, 'Diagnostic event received.'];
+    setOperation(label, detail, eventName === 'tn10_slow' ? 'warn' : 'busy');
+    setStatus(label, null);
+  }
+
 
   async function fetchJson(url, options = {}) {
     const response = await fetch(url, {
@@ -284,6 +405,7 @@ import {
     renderSelections();
     renderResult();
     renderOperationStatus();
+    renderDiagnosticsPanel();
     renderCompactStatus();
     renderFlowchart();
     el.spinButton.disabled = state.busy || !state.roundId || !['chips'].includes(state.stage) || state.selections.length === 0;
@@ -362,6 +484,119 @@ import {
       </div>
     `;
   }
+
+  function renderDiagnosticsPanel() {
+    if (!el.diagnosticsPanel) return;
+    const diagnostics = state.diagnostics;
+    const events = state.diagnosticEvents.slice(-8).reverse();
+    const active = Boolean(diagnostics || events.length > 0);
+    const summaryItems = diagnosticSummaryItems(diagnostics);
+    const rows = [
+      ['State', active ? 'active' : 'standing by'],
+      ['Spin ID', diagnostics && diagnostics.spinId],
+      ['Status', diagnostics && diagnostics.status],
+      ['Spin total', diagnostics && spinTotalMs(diagnostics) !== undefined ? formatMs(spinTotalMs(diagnostics)) : undefined],
+      ['TN10 wait', diagnostics && diagnostics.tn10WaitElapsedMs !== undefined ? formatMs(diagnostics.tn10WaitElapsedMs) : undefined],
+      ['Server total', diagnostics && diagnostics.totalElapsedMs !== undefined ? formatMs(diagnostics.totalElapsedMs) : undefined],
+      ['Target DAA', diagnostics && diagnostics.targetDaaScore],
+      ['Current DAA', diagnostics && diagnostics.currentDaaScore],
+      ['Poll attempts', diagnostics && diagnostics.pollAttempts],
+      ['Last RPC step', diagnostics && diagnostics.lastRpcStep],
+      ['Last RPC latency', diagnostics && diagnostics.lastRpcMs !== undefined ? `${diagnostics.lastRpcMs}ms` : undefined],
+      ['Last RPC lifecycle', diagnostics && diagnostics.lastRpcLifecycleStep],
+      ['Last lifecycle time', diagnostics && diagnostics.lastRpcLifecycleMs !== undefined ? `${diagnostics.lastRpcLifecycleMs}ms` : undefined],
+      ['Spin RPC connect', diagnostics && diagnostics.spinRpcConnectMs !== undefined ? `${diagnostics.spinRpcConnectMs}ms` : undefined],
+      ['Spin RPC session', diagnostics && diagnostics.spinRpcSessionTotalMs !== undefined ? formatMs(diagnostics.spinRpcSessionTotalMs) : undefined],
+      ['RPC endpoint', diagnostics && diagnostics.spinRpc && diagnostics.spinRpc.endpoint ? shortText(diagnostics.spinRpc.endpoint, 54) : undefined],
+      ['RPC strategy', diagnostics && diagnostics.spinRpc && diagnostics.spinRpc.strategy],
+      ['Target RPC connect', diagnostics && diagnostics.targetSelectionRpcConnectMs !== undefined ? `${diagnostics.targetSelectionRpcConnectMs}ms` : undefined],
+      ['Target RPC session', diagnostics && diagnostics.targetSelectionRpcSessionTotalMs !== undefined ? formatMs(diagnostics.targetSelectionRpcSessionTotalMs) : undefined],
+      ['Block RPC connect', diagnostics && diagnostics.blockEvidenceRpcConnectMs !== undefined ? `${diagnostics.blockEvidenceRpcConnectMs}ms` : undefined],
+      ['Block RPC session', diagnostics && diagnostics.blockEvidenceRpcSessionTotalMs !== undefined ? formatMs(diagnostics.blockEvidenceRpcSessionTotalMs) : undefined],
+      ['Browser verify', diagnostics && diagnostics.browserVerificationMs !== undefined ? `${diagnostics.browserVerificationMs}ms` : undefined],
+    ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+    el.diagnosticsPanel.innerHTML = `
+      <details class="diagnostics-card${active ? '' : ' inactive'}">
+        <summary>
+          <span class="diagnostics-title">Live diagnostics</span>
+          <span class="diagnostics-summary-strip">
+            ${summaryItems.map(([label, value]) => `<span class="diagnostics-summary-item"><b>${escapeHtml(label)}</b>${escapeHtml(value)}</span>`).join('')}
+          </span>
+        </summary>
+        <div class="diagnostics-grid">
+          ${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
+        </div>
+        <ol class="diagnostic-events">
+          ${events.length > 0
+            ? events.map((entry) => `<li><strong>${escapeHtml(entry.event)}</strong><span>${escapeHtml(entry.detail)}</span></li>`).join('')
+            : '<li><strong>idle</strong><span>Diagnostics will stream here after Spin Wheel locks the chip ledger.</span></li>'}
+        </ol>
+      </details>
+    `;
+  }
+
+  function appendDiagnosticEvent(event, data = {}) {
+    const elapsed = data.elapsedMs !== undefined ? ` · ${formatMs(data.elapsedMs)}` : '';
+    const detail = diagnosticEventDetail(event, data) + elapsed;
+    state.diagnosticEvents.push({ event, detail, ts: data.ts || new Date().toISOString() });
+    if (state.diagnosticEvents.length > 80) state.diagnosticEvents.splice(0, state.diagnosticEvents.length - 80);
+  }
+
+  function diagnosticEventDetail(event, data) {
+    if (event === 'tn10_poll') return `attempt ${data.attempt}, DAA ${data.currentDaaScore}/${data.targetDaaScore}, RPC ${data.rpcMs}ms`;
+    if (event === 'tn10_target_selected') return `target ${data.target && data.target.score}, current ${data.currentDaaScore}`;
+    if (event === 'tn10_block_found') return `block ${shortText(data.block && data.block.blockHash)}, DAA ${data.block && data.block.daaScore}`;
+    if (event === 'ledger_locked') return `ledger ${shortText(data.ledgerHash)}`;
+    if (event === 'server_package_check_complete') return `server check ${data.serverPackageCheck && data.serverPackageCheck.durationMs}ms`;
+    if (event === 'rpc_session_starting') return `${data.phase} ${data.sessionId}`;
+    if (event === 'rpc_connecting') return `${data.phase} connect timeout ${data.timeoutMs}ms`;
+    if (event === 'rpc_endpoint_connecting') return `${shortText(data.endpoint, 42)} race ${data.raceTimeoutMs}ms`;
+    if (event === 'rpc_endpoint_connected') return `${shortText(data.endpoint, 42)} ${data.connectMs}ms`;
+    if (event === 'rpc_endpoint_timeout') return `${shortText(data.endpoint, 42)} timed out ${data.connectMs}ms`;
+    if (event === 'rpc_endpoint_error') return `${shortText(data.endpoint, 42)} error ${data.error || 'unknown'}`;
+    if (event === 'rpc_endpoint_race_exhausted') return `${(data.attempts || []).length} endpoint attempts exhausted`;
+    if (event === 'rpc_resolver_connecting') return `${data.phase} resolver fallback`;
+    if (event === 'rpc_connected') return `${data.phase} connected in ${data.connectMs}ms (${data.endpoint || 'endpoint unavailable'})`;
+    if (event === 'rpc_disconnecting') return `${data.phase} disconnecting`;
+    if (event === 'rpc_disconnected') return `${data.phase} disconnected in ${data.disconnectMs}ms${data.error ? `, ${data.error}` : ''}`;
+    if (event === 'browser_package_verification') return `browser check ${data.browserVerificationMs}ms, ok ${data.ok}`;
+    if (event === 'spin_session_created') return `log ${data.logPath || 'pending'}`;
+    if (event === 'spin_error') return data.message || 'spin failed';
+    if (event === 'sse_stalled') return data.message || 'no diagnostic event received';
+    if (event === 'sse_transport_error') return data.message || 'SSE transport error';
+    return data.diagnostics && data.diagnostics.status ? data.diagnostics.status : 'event received';
+  }
+
+  function diagnosticSummaryItems(diagnostics) {
+    if (!diagnostics) return [['Status', 'waiting for spin session']];
+    const items = [
+      ['Status', diagnosticSummary(diagnostics)],
+      ['Spin total', spinTotalMs(diagnostics) !== undefined ? formatMs(spinTotalMs(diagnostics)) : 'running'],
+      ['TN10 wait', diagnostics.tn10WaitElapsedMs !== undefined ? formatMs(diagnostics.tn10WaitElapsedMs) : 'pending'],
+      ['Polls', diagnostics.pollAttempts !== undefined ? String(diagnostics.pollAttempts) : '0'],
+      ['RPC call', diagnostics.lastRpcMs !== undefined ? `${diagnostics.lastRpcMs}ms` : 'pending'],
+      ['RPC life', diagnostics.lastRpcLifecycleMs !== undefined ? `${diagnostics.lastRpcLifecycleMs}ms` : 'pending'],
+    ];
+    return items;
+  }
+
+  function diagnosticSummary(diagnostics) {
+    if (!diagnostics) return 'waiting for spin session';
+    if (diagnostics.status === 'tn10_polling' || diagnostics.status === 'tn10_slow') {
+      return `DAA ${diagnostics.currentDaaScore || '?'} / ${diagnostics.targetDaaScore || '?'}`;
+    }
+    return diagnostics.status || 'diagnostics active';
+  }
+
+  function spinTotalMs(diagnostics) {
+    if (!diagnostics) return undefined;
+    if (diagnostics.totalElapsedMs !== undefined) return diagnostics.totalElapsedMs;
+    if (!diagnostics.startedAt) return undefined;
+    const startedMs = Date.parse(diagnostics.startedAt);
+    if (!Number.isFinite(startedMs)) return undefined;
+    return Date.now() - startedMs;
+  }
+
 
   function renderCompactStatus() {
     const spec = hydrateFlowSpec();
@@ -538,9 +773,12 @@ import {
     return labels[stage] || stage;
   }
 
-  function shortText(value) {
+  function shortText(value, maxLength = 22) {
     const text = String(value || '');
-    return text.length > 22 ? `${text.slice(0, 12)}…${text.slice(-8)}` : text;
+    if (text.length <= maxLength) return text;
+    const front = Math.max(8, Math.floor(maxLength * 0.55));
+    const back = Math.max(6, maxLength - front - 1);
+    return `${text.slice(0, front)}…${text.slice(-back)}`;
   }
 
   function setOperation(label, detail, tone = 'idle') {
@@ -550,6 +788,20 @@ import {
   function setStatus(text, passed) {
     el.serviceStatus.textContent = text;
     el.serviceStatus.className = `status-pill ${passed === true ? 'pass' : passed === false ? 'fail' : ''}`;
+  }
+
+  function closeSpinEventSource() {
+    if (state.spinEventSource) {
+      state.spinEventSource.close();
+      state.spinEventSource = null;
+    }
+  }
+
+  function formatMs(ms) {
+    const number = Number(ms);
+    if (!Number.isFinite(number)) return 'n/a';
+    if (number < 1000) return `${Math.round(number)}ms`;
+    return `${(number / 1000).toFixed(1)}s`;
   }
 
   function escapeHtml(value) {

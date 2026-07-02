@@ -27,6 +27,8 @@ describe('roulette package-runtime consumer', () => {
     assert.match(app, /outcomeDerivers/);
     assert.match(app, /tn10_future_entropy/);
     assert.match(app, /fetch\(/);
+    assert.match(app, /EventSource/);
+    assert.match(app, /diagnosticsPanel/);
     assert.doesNotMatch(app, /local_bundle_only|deriveLocalEntropy|browser-local-bundle-entropy|Local bundle entropy/i);
     assert.match(index, /kaspa-pof-api package runtime/i);
     assert.doesNotMatch(index, /Kaspa Toccata API|API round|returned by the API|local_bundle_only/i);
@@ -45,6 +47,15 @@ describe('roulette package-runtime consumer', () => {
     assert.match(server, /deriveEntropyHash/);
     assert.match(server, /verifyFairnessProof/);
     assert.match(server, /tn10_future_entropy/);
+    assert.match(server, /text\/event-stream/);
+    assert.match(server, /appendSpinLog/);
+    assert.match(server, /ROULETTE_RUNTIME_LOG_ROOT/);
+    assert.match(server, /rpc_connected/);
+    assert.match(server, /rpc_disconnected/);
+    assert.match(server, /rpc_endpoint_connected/);
+    assert.match(server, /ROULETTE_KASPA_WRPC_ENDPOINTS/);
+    assert.match(server, /WRPC_CONNECT_RACE_MS/);
+    assert.match(server, /RpcConnectMs/);
     assert.doesNotMatch(server, /local_bundle_only|\/v1\/proofs\/verify|verified\s*:\s*true/i);
   });
 });

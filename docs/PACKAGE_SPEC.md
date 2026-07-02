@@ -25,7 +25,7 @@ Given a pre-committed hidden server input, fixed user/app inputs, and future Kas
 
 `examples/roulette-poc/` is an example consumer, not package core. It now demonstrates the intended production trust boundary:
 
-- `examples/roulette-poc/server.cjs` is roulette-specific infrastructure for round creation, hidden server seed custody, chip-ledger locking, live TN10 future-block evidence fetching, and portable proof-bundle assembly.
+- `examples/roulette-poc/server.cjs` is roulette-specific infrastructure for round creation, hidden server seed custody, chip-ledger locking, live TN10 future-block evidence fetching, bounded WRPC endpoint racing/fallback, SSE diagnostics, JSONL runtime logs, and portable proof-bundle assembly.
 - `examples/roulette-poc/app.js` imports `kaspa-pof-api` in the browser and verifies the returned `tn10_future_entropy` proof bundle through `verifyFairnessProof()` with a roulette-specific outcome deriver.
 - The server does not expose a trusted proof-verdict endpoint. Any service path is evidence plumbing; the package runtime remains the verifier.
 

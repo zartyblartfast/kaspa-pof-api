@@ -164,7 +164,7 @@ Acceptance criteria:
 
 ## Workstream 5: Adapt `examples/roulette-poc/` into a package-runtime roulette consumer
 
-Status: implemented structurally as a TN10-backed package-runtime consumer. The example now has a roulette-specific server that creates committed rounds, locks chip ledgers, fetches real TN10 future-block evidence through rusty-kaspa WASM, assembles portable `tn10_future_entropy` proof bundles, and sanity-checks them through the package. The browser imports `kaspa-pof-api`, supplies the roulette outcome deriver, and calls `verifyFairnessProof()` itself. The server is evidence plumbing, not proof authority.
+Status: implemented as a verified TN10-backed package-runtime consumer. The example now has a roulette-specific server that creates committed rounds, locks chip ledgers, fetches real TN10 future-block evidence through rusty-kaspa WASM, races bounded public WRPC endpoints with resolver fallback, streams SSE diagnostics, writes per-spin JSONL logs, assembles portable `tn10_future_entropy` proof bundles, and sanity-checks them through the package. The browser imports `kaspa-pof-api`, supplies the roulette outcome deriver, and calls `verifyFairnessProof()` itself. The server is evidence plumbing, not proof authority.
 
 Implemented files:
 
@@ -191,6 +191,7 @@ Acceptance criteria:
 - Existing package-name import remains.
 - Legacy raw app-level `/v1/*` proof-authority fetches are removed or demoted to non-authoritative convenience/evidence plumbing.
 - No mock/offline/static result/proof spoofing path is added.
+- Live browser spins have reached `Browser package verified TN10 proof`, and diagnostics stay collapsed/reserved so the roulette table is not pushed down during a spin.
 
 ## Workstream 6: Optional transport adapters, after runtime stabilization
 

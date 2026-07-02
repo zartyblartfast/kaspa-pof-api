@@ -54,6 +54,7 @@ A roulette consumer may contain roulette-specific server orchestration, UI, and 
 
 - round/session orchestration and hidden server-seed custody
 - live TN10 evidence fetching and proof-bundle assembly
+- bounded WRPC endpoint selection, retry/fallback diagnostics, and runtime logs for evidence fetch operations
 - table rendering
 - chip placement
 - roulette result display
@@ -72,7 +73,7 @@ A VPS/Node/Python/Vercel service can remain useful for:
 - optional transaction submission
 - optional HTTP adapter for developers who prefer hosted APIs
 
-But it should not be required to independently verify fairness. In the roulette PoC, the service creates rounds and supplies real TN10 evidence, but the browser calls the package verifier and displays that result.
+But it should not be required to independently verify fairness. In the roulette PoC, the service creates rounds and supplies real TN10 evidence, streams progress diagnostics, and logs per-spin JSONL timing data, but the browser calls the package verifier and displays that result. RPC endpoint racing and fallback are availability/UX concerns only; they do not change the proof authority.
 
 The package may expose explicit TN10 transaction-anchor submission helpers because TN10 spends testnet funds and is useful for proof-of-fairness anchoring. That path must remain opt-in and fail closed unless the caller supplies a TN10 private key, explicit broadcast enablement, the acknowledgement phrase, and a fee cap that covers the created transaction summary. No mainnet submitter exists in the package.
 
