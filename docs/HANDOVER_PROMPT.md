@@ -67,6 +67,7 @@ examples/roulette-poc/
 docs/ARCHITECTURE.md
 docs/PACKAGE_SPEC.md
 docs/NEXT_PHASE_PLAN.md
+docs/HERMES_PROFILE_SETUP.md
 docs/HANDOVER_PROMPT.md
 references/
 ```
