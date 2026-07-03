@@ -514,24 +514,28 @@ import {
   function renderDemoAccounting() {
     if (!el.demoAccountingCard) return;
     const stake = state.roundAccounting ? state.roundAccounting.stake : totalRoundStake(state.selections);
+    // Fixed three-row layout (stake/returned/net) so this card never changes height
+    // during a round; rows without a real value yet render as an inactive placeholder.
     const roundRows = [
-      ['Round stake', `${formatDemoUnits(stake)} demo units`],
+      ['Round stake', `${formatDemoUnits(stake)} demo units`, false],
+      ['Returned', '—', true],
+      ['Round net', '—', true],
     ];
     let statusText = 'Place chips to set the round stake.';
     let tone = 'idle';
     if (state.roundAccounting && state.roundAccounting.status === 'settled') {
-      roundRows.push(['Returned', `${formatDemoUnits(state.roundAccounting.returned)} demo units`]);
-      roundRows.push(['Round net', formatSignedDemoUnits(state.roundAccounting.net)]);
+      roundRows[1] = ['Returned', `${formatDemoUnits(state.roundAccounting.returned)} demo units`, false];
+      roundRows[2] = ['Round net', formatSignedDemoUnits(state.roundAccounting.net), false];
       statusText = `${state.roundAccounting.winningSelections} winning selection${state.roundAccounting.winningSelections === 1 ? '' : 's'} after browser package verification.`;
       tone = state.roundAccounting.net > 0 ? 'win' : state.roundAccounting.net < 0 ? 'loss' : 'push';
     } else if (state.roundAccounting && state.roundAccounting.status === 'unsettled_verification_failed') {
-      roundRows.push(['Returned', 'not settled']);
-      roundRows.push(['Round net', 'not settled']);
+      roundRows[1] = ['Returned', 'not settled', false];
+      roundRows[2] = ['Round net', 'not settled', false];
       statusText = 'Round was not settled because browser proof verification failed.';
       tone = 'fail';
     } else if (state.busy || ['spinning', 'closed', 'entropy', 'revealed'].includes(state.stage)) {
-      roundRows.push(['Returned', 'pending browser verification']);
-      roundRows.push(['Round net', 'pending browser verification']);
+      roundRows[1] = ['Returned', 'pending browser verification', false];
+      roundRows[2] = ['Round net', 'pending browser verification', false];
       statusText = 'Settlement waits for successful browser/package proof replay.';
       tone = 'pending';
     } else if (stake > 0) {
@@ -544,7 +548,7 @@ import {
         <strong class="session-pl ${sessionTone(state.sessionProfitLoss)}">${formatSignedDemoUnits(state.sessionProfitLoss)}</strong>
       </div>
       <div class="accounting-grid ${escapeHtml(tone)}">
-        ${roundRows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
+        ${roundRows.map(([label, value, inactive]) => `<div${inactive ? ' class="accounting-inactive"' : ''}><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
         <div><span>Session P/L</span><strong>${escapeHtml(formatSignedDemoUnits(state.sessionProfitLoss))}</strong></div>
       </div>
       <p>${escapeHtml(statusText)}</p>

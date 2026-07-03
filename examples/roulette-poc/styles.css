@@ -46,6 +46,11 @@ button {
 
 button:hover:not(:disabled) { filter: brightness(1.12); }
 button:disabled { cursor: not-allowed; opacity: 0.45; }
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
 
 input {
   width: 100%;
@@ -205,7 +210,7 @@ h3 { margin: 0 0 8px; }
   overflow-x: auto;
 }
 
-.roulette-svg-host { min-width: 860px; }
+.roulette-svg-host { min-width: 0; width: 100%; }
 .roulette-table-svg { width: 100%; height: auto; display: block; }
 .roulette-table-frame { fill: var(--table-surface); stroke: rgba(255,255,255,.16); stroke-width: .6; }
 .roulette-zone rect,
@@ -221,10 +226,13 @@ h3 { margin: 0 0 8px; }
 .hotspot-marker-shape { fill: rgba(243, 200, 75, 0.48); }
 .zone-clickable { cursor: pointer; }
 .roulette-zone:focus,
-.roulette-zone:focus-visible,
-.zone-clickable:focus,
-.zone-clickable:focus-visible {
+.zone-clickable:focus {
   outline: none;
+}
+.roulette-zone:focus-visible,
+.zone-clickable:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
 }
 .roulette-zone::-moz-focus-inner,
 .zone-clickable::-moz-focus-inner { border: 0; }
@@ -322,11 +330,22 @@ h3 { margin: 0 0 8px; }
 .accounting-grid.loss div,
 .accounting-grid.fail div { border-color: rgba(239, 68, 68, 0.24); }
 .accounting-grid.pending div { border-color: rgba(243, 200, 75, 0.2); }
+.accounting-grid div.accounting-inactive {
+  border-color: rgba(148, 163, 184, 0.1);
+  background: rgba(255, 255, 255, 0.015);
+}
+.accounting-grid div.accounting-inactive span,
+.accounting-grid div.accounting-inactive strong {
+  color: var(--quiet);
+}
 .demo-accounting-card p {
   margin: 0;
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.42;
+}
+.demo-accounting-card p:not(.accounting-note) {
+  min-height: calc(0.82rem * 1.42 * 2);
 }
 .demo-accounting-card .accounting-note {
   color: var(--quiet);
@@ -395,6 +414,26 @@ h3 { margin: 0 0 8px; }
   padding: 13px 15px;
   cursor: pointer;
   list-style: none;
+}
+.diagnostics-card > summary::-webkit-details-marker { display: none; }
+.diagnostics-card > summary::after {
+  content: "+";
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: #08111f;
+  background: var(--cyan);
+  font-size: 0.95rem;
+  font-weight: 950;
+}
+.diagnostics-card[open] > summary::after { content: "−"; }
+.diagnostics-card.inactive > summary::after {
+  color: var(--quiet);
+  background: rgba(148, 163, 184, 0.16);
 }
 .diagnostics-title {
   flex: 0 0 auto;
