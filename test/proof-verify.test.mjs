@@ -184,6 +184,32 @@ describe('generalized fairness proof verification', () => {
     assert.equal(result.ok, false);
     assert.equal(result.errors.some((error) => error.code === 'KASPA_POF_ANCHOR_PAYLOAD_HASH_MISMATCH'), true);
   });
+
+  it('fails closed without throwing for malformed transaction-anchored proof objects', () => {
+    const proof = buildProof({ claimLevel: 'tn10_tx_anchored', anchors: [] });
+    delete proof.network;
+    delete proof.reveal;
+
+    assert.doesNotThrow(() => verifyFairnessProof(proof));
+    const result = verifyFairnessProof(proof);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.errors.some((error) => error.code === 'KASPA_POF_NETWORK_ID_MISSING'), true);
+    assert.equal(result.errors.some((error) => error.code === 'KASPA_POF_ANCHOR_PAYLOAD_HASHES_INVALID'), true);
+  });
+
+  it('fails closed without throwing for malformed proof-root-anchored proof objects', () => {
+    const proof = buildProof({ claimLevel: 'tn10_proof_root_anchored', anchors: [{ phase: 'proof-root' }] });
+    delete proof.network;
+    delete proof.round;
+
+    assert.doesNotThrow(() => verifyFairnessProof(proof));
+    const result = verifyFairnessProof(proof);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.errors.some((error) => error.code === 'KASPA_POF_NETWORK_ID_MISSING'), true);
+    assert.equal(result.errors.some((error) => error.code === 'KASPA_POF_PROOF_ROOT_TXID_INVALID'), true);
+  });
 });
 
 function deepMerge(base, override) {

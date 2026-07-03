@@ -77,16 +77,24 @@ function verifyEntropyEvidence(proof, checks, errors) {
 }
 
 function verifyAnchorEvidence(proof, checks, errors) {
-  const result = validateAnchorEvidence({ claimLevel: proof.claimLevel, network: proof.network, anchors: proof.anchors, payloadHashes: buildAnchorPayloadHashes(proof) });
+  let payloadHashes;
+  try {
+    payloadHashes = buildAnchorPayloadHashes(proof);
+  } catch (error) {
+    pushCheck(checks, errors, 'anchors', false, 'KASPA_POF_ANCHOR_PAYLOAD_HASHES_INVALID', error && error.message ? error.message : 'anchor payload hashes could not be computed');
+    return;
+  }
+  const result = validateAnchorEvidence({ claimLevel: proof.claimLevel, network: proof.network, anchors: proof.anchors, payloadHashes });
   pushCheck(checks, errors, 'anchors', result.ok, result.code || 'KASPA_POF_ANCHOR_EVIDENCE_INVALID', result.message || 'transaction-anchored claim levels require valid anchor evidence', result.ok ? { requiredPhases: result.requiredPhases, presentPhases: result.presentPhases } : { phase: result.phase, missingPhase: result.missingPhase });
 }
 
 function verifyProofRootAnchorEvidence(proof, checks, errors) {
   const proofRootAnchors = Array.isArray(proof.anchors) ? proof.anchors.filter((anchor) => anchor && anchor.phase === 'proof-root') : [];
   const anchor = proofRootAnchors[0];
+  const proofNetworkId = proof.network && proof.network.networkId;
   if (!anchor) return pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_ANCHOR_MISSING', 'tn10_proof_root_anchored requires one proof-root anchor');
   if (proofRootAnchors.length !== 1) return pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_ANCHOR_DUPLICATE', 'tn10_proof_root_anchored requires exactly one proof-root anchor');
-  if (anchor.networkId !== proof.network.networkId) return pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_ANCHOR_NETWORK_MISMATCH', 'proof-root anchor networkId does not match proof networkId', { phase: 'proof-root' });
+  if (anchor.networkId !== proofNetworkId) return pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_ANCHOR_NETWORK_MISMATCH', 'proof-root anchor networkId does not match proof networkId', { phase: 'proof-root' });
   if (!isHex64(anchor.txid)) return pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_TXID_INVALID', 'proof-root anchor txid must be a 64-character hex string', { phase: 'proof-root' });
   if (!isHex64(anchor.acceptingBlockHash)) return pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_ACCEPTING_BLOCK_INVALID', 'proof-root anchor acceptingBlockHash must be a 64-character hex string', { phase: 'proof-root' });
   if (!anchor.submittedTransactionEvidence || typeof anchor.submittedTransactionEvidence !== 'object' || Array.isArray(anchor.submittedTransactionEvidence)) return pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_SUBMITTED_EVIDENCE_MISSING', 'proof-root anchor requires submitted transaction evidence with payloadHex', { phase: 'proof-root' });
@@ -98,7 +106,13 @@ function verifyProofRootAnchorEvidence(proof, checks, errors) {
   if (anchor.payloadHash !== submitted.payloadHash) return pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_PAYLOAD_HASH_MISMATCH', 'proof-root anchor payloadHash does not match submitted transaction payload hash', { phase: 'proof-root' });
 
   const payload = submitted.payloadObject && submitted.payloadObject.payload;
-  const root = computeProofRoot(proof);
+  let root;
+  try {
+    root = computeProofRoot(proof);
+  } catch (error) {
+    pushCheck(checks, errors, 'proofRootAnchor', false, 'KASPA_POF_PROOF_ROOT_COMPUTE_FAILED', error && error.message ? error.message : 'proof root could not be computed', { phase: 'proof-root' });
+    return;
+  }
   const payloadValidation = validateProofRootPayload({ proof, payload, root });
   if (!payloadValidation.ok) return pushCheck(checks, errors, 'proofRootAnchor', false, payloadValidation.code, payloadValidation.message, { phase: 'proof-root' });
 
@@ -110,9 +124,9 @@ function validateProofRootPayload({ proof, payload, root }) {
   if (payload.schema !== PROOF_ROOT_ANCHOR_PAYLOAD_SCHEMA_V1) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_SCHEMA_INVALID', 'proof-root payload schema is unsupported');
   if (payload.proofRootAlgorithm !== PROOF_ROOT_ALGORITHM) return fail('KASPA_POF_PROOF_ROOT_ALGORITHM_UNSUPPORTED', 'proof-root payload algorithm is unsupported');
   if (payload.proofSchema !== proof.schema) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_PROOF_SCHEMA_MISMATCH', 'proof-root payload proofSchema does not match proof schema');
-  if (payload.networkId !== proof.network.networkId) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_NETWORK_MISMATCH', 'proof-root payload networkId does not match proof networkId');
+  if (payload.networkId !== (proof.network && proof.network.networkId)) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_NETWORK_MISMATCH', 'proof-root payload networkId does not match proof networkId');
   if (payload.claimLevel !== proof.claimLevel) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_CLAIM_MISMATCH', 'proof-root payload claimLevel does not match proof claimLevel');
-  if (payload.roundId !== proof.round.roundId) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_ROUND_MISMATCH', 'proof-root payload roundId does not match proof roundId');
+  if (payload.roundId !== (proof.round && proof.round.roundId)) return fail('KASPA_POF_PROOF_ROOT_PAYLOAD_ROUND_MISMATCH', 'proof-root payload roundId does not match proof roundId');
   if (payload.proofRoot !== root) return fail('KASPA_POF_PROOF_ROOT_MISMATCH', 'proof-root payload proofRoot does not match recomputed proof root');
   return { ok: true };
 }
