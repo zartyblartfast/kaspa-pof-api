@@ -44,12 +44,12 @@ Spend/fee-related transaction submission is allowed to run through a Node/server
 
 Package version: `0.1.0-alpha.2`.
 
-Latest committed baseline:
+Latest implementation/package/demo baseline:
 
 ```text
+e65cc6a chore: publish alpha.2 and harden roulette demo
 2ed5da0 fix: fail closed for malformed anchored proofs
-00e5441 chore: publish public roulette PoC on kaspaproof.com
-fee0ec4 docs: clarify npm package consumer boundary
+00e5441 docs: add roulette PoC hosting plan
 ```
 
 Root runtime exports include:
@@ -149,10 +149,10 @@ Caddy terminates HTTPS for `kaspaproof.com` / `www.kaspaproof.com` and proxies `
 
 ## Latest verification evidence
 
-Latest source baseline before this handover update:
+Latest implementation/package/demo baseline:
 
 ```text
-2ed5da0 fix: fail closed for malformed anchored proofs
+e65cc6a chore: publish alpha.2 and harden roulette demo
 ```
 
 Current verification after public-demo hardening and `0.1.0-alpha.2` publication:
@@ -168,6 +168,7 @@ npm pack --dry-run: PASS, 56 files, kaspa-pof-api-0.1.0-alpha.2.tgz
 Public deployment health after push:
 
 ```text
+HEAD https://kaspaproof.com/examples/roulette-poc/health: HTTP/2 200
 GET https://kaspaproof.com/examples/roulette-poc/health: ok=true, claimLevel=tn10_future_entropy, networkId=testnet-10
 caddy: active/enabled
 kaspa-pof-roulette.service: active/enabled
@@ -199,7 +200,7 @@ Completed npm-consumer correction:
 
 ## Latest completed task: fail-closed malformed anchored proof verification
 
-The latest pushed source change is:
+The fail-closed verifier source change is:
 
 ```text
 2ed5da0 fix: fail closed for malformed anchored proofs

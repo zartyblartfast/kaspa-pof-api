@@ -15,12 +15,12 @@ Current package version:
 0.1.0-alpha.2
 ```
 
-Latest committed baseline:
+Latest implementation/package/demo baseline:
 
 ```text
+e65cc6a chore: publish alpha.2 and harden roulette demo
 2ed5da0 fix: fail closed for malformed anchored proofs
-00e5441 chore: publish public roulette PoC on kaspaproof.com
-fee0ec4 docs: clarify npm package consumer boundary
+00e5441 docs: add roulette PoC hosting plan
 ```
 
 ## Implemented root API direction
@@ -151,10 +151,10 @@ Live browser spins have reached browser/package verification over the public dom
 
 ## Latest verification evidence
 
-Latest source baseline before this handover update:
+Latest implementation/package/demo baseline:
 
 ```text
-2ed5da0 fix: fail closed for malformed anchored proofs
+e65cc6a chore: publish alpha.2 and harden roulette demo
 ```
 
 Current verification after public-demo hardening and `0.1.0-alpha.2` publication:
@@ -170,6 +170,7 @@ npm pack --dry-run: PASS, 56 files, kaspa-pof-api-0.1.0-alpha.2.tgz
 Public deployment health after push:
 
 ```text
+HEAD https://kaspaproof.com/examples/roulette-poc/health: HTTP/2 200
 GET https://kaspaproof.com/examples/roulette-poc/health: ok=true, claimLevel=tn10_future_entropy, networkId=testnet-10
 caddy: active/enabled
 kaspa-pof-roulette.service: active/enabled
@@ -197,7 +198,7 @@ Do not move proof verification back into a Node/server. A server may submit anch
 
 ## Current git status expectation
 
-After the housekeeping commit requested on 2026-07-03 is pushed, `main` should be clean and aligned with `origin/main`. If not, inspect `git status --short` before changing code.
+Current expected state: `main` should be clean and aligned with `origin/main`. `e65cc6a` is the latest implementation/package/demo baseline; any later docs-only handover commit only refreshes these handoff notes. If state differs, inspect `git status --short` before changing code.
 
 Start `/new` with:
 
@@ -222,7 +223,7 @@ git diff --stat
 
 ## Latest completed task: fail-closed malformed anchored proof verification
 
-The latest pushed source commit is:
+The fail-closed verifier source commit is:
 
 ```text
 2ed5da0 fix: fail closed for malformed anchored proofs
