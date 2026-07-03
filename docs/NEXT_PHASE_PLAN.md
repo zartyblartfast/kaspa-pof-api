@@ -26,7 +26,7 @@ installed kaspa-pof-api npm package verifies that proof locally
 roulette displays local verification result
 ```
 
-The old HTTP `/v1/proofs/verify` service remains only a historical/reference path in the old project. It is not exported by this package and must not be the proof authority for new consumers. The in-repo PoC now pins and serves the published `kaspa-pof-api@0.1.0-alpha.1` browser export instead of repo-local `/src/browser.mjs`; see `docs/ROULETTE_NPM_CONSUMER_WIRING.md` for every wiring point and anti-stale-code guard.
+The old HTTP `/v1/proofs/verify` service remains only a historical/reference path in the old project. It is not exported by this package and must not be the proof authority for new consumers. The in-repo PoC now pins and serves the published `kaspa-pof-api@0.1.0-alpha.2` browser export instead of repo-local `/src/browser.mjs`; see `docs/ROULETTE_NPM_CONSUMER_WIRING.md` for every wiring point and anti-stale-code guard.
 
 ## Architecture principle
 
@@ -166,7 +166,7 @@ Acceptance criteria:
 
 ## Workstream 5: Adapt `examples/roulette-poc/` into a package-runtime roulette consumer
 
-Status: implemented as a verified TN10-backed published-npm-package consumer. The example now has a roulette-specific server that creates committed rounds, locks chip ledgers, fetches real TN10 future-block evidence through rusty-kaspa WASM, races bounded public WRPC endpoints with resolver fallback, streams SSE diagnostics, writes per-spin JSONL logs, assembles portable `tn10_future_entropy` proof bundles, and sanity-checks them through the installed package. The browser imports `kaspa-pof-api/browser` from `examples/roulette-poc/node_modules/kaspa-pof-api@0.1.0-alpha.1`, supplies the roulette outcome deriver, and calls `verifyFairnessProof()` itself. The server is evidence plumbing, not proof authority.
+Status: implemented as a verified TN10-backed published-npm-package consumer. The example now has a roulette-specific server that creates committed rounds, locks chip ledgers, fetches real TN10 future-block evidence through rusty-kaspa WASM, races bounded public WRPC endpoints with resolver fallback, streams SSE diagnostics, writes per-spin JSONL logs, assembles portable `tn10_future_entropy` proof bundles, and sanity-checks them through the installed package. The browser imports `kaspa-pof-api/browser` from `examples/roulette-poc/node_modules/kaspa-pof-api@0.1.0-alpha.2`, supplies the roulette outcome deriver, and calls `verifyFairnessProof()` itself. The server is evidence plumbing, not proof authority.
 
 Published-package wiring is captured in `docs/ROULETTE_NPM_CONSUMER_WIRING.md`; tests and smoke fail if the PoC maps back to repo-local `/src/browser.mjs`, reintroduces a trusted proof endpoint, or removes browser/package verification.
 
@@ -196,9 +196,9 @@ UI displays browser package verification result
 Published-package correction completed:
 
 ```text
-kaspa-pof-api@0.1.0-alpha.1 published
+kaspa-pof-api@0.1.0-alpha.2 published
         ↓
-examples/roulette-poc installs/pins kaspa-pof-api@0.1.0-alpha.1
+examples/roulette-poc installs/pins kaspa-pof-api@0.1.0-alpha.2
         ↓
 browser imports kaspa-pof-api/browser from installed dependency
         ↓
@@ -331,7 +331,7 @@ KASPA_POF_ROULETTE_TN10_VERIFY=PASS
 9. Implement the formal proof-root-only TN10 claim model described in Workstream 8 if the next priority remains proof-root-only anchoring.
 10. DONE structurally: adapt `examples/roulette-poc/` into a TN10-backed package-runtime roulette consumer that calls browser-side package verification.
 11. DONE: live create/spin/browser verification has been recorded and committed through `dee2579`.
-12. Next: publish `kaspa-pof-api@0.1.0-alpha.1` after final approval, add a browser-safe package export if needed, then convert `examples/roulette-poc/` into a real installed-npm-package consumer. Do not move verifier logic back into the server.
+12. DONE: `kaspa-pof-api@0.1.0-alpha.2` is published, and `examples/roulette-poc/` is pinned to the installed npm package consumer path. Do not move verifier logic back into the server.
 
 ## Open questions
 
@@ -340,7 +340,7 @@ KASPA_POF_ROULETTE_TN10_VERIFY=PASS
   2. DONE for this accounting change: a real browser RED-chip spin reached `Browser package verified TN10 proof`, result `34 red`, round stake `5`, returned `10`, round net `+5`, and session P/L `+5`; Reset Round then cleared round state while keeping session P/L.
   3. Keep `docs/ROULETTE_NPM_CONSUMER_WIRING.md`, `test/roulette-runtime-consumer.test.mjs`, and `scripts/smoke.sh` synchronized so stale local-source wiring cannot return silently.
   4. Next likely decision: whether to cut a follow-up npm package version for the browser export/docs/example updates, after reviewing tarball contents with `npm pack --dry-run`.
-- Version decision completed: `kaspa-pof-api@0.1.0-alpha.1` is published.
+- Version decision completed: `kaspa-pof-api@0.1.0-alpha.2` is published.
 - Optional chain evidence provider/adapters are parked until roulette integration proves they are needed.
 - Mainnet paid submission is parked for a later stage.
 

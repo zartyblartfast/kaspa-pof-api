@@ -18,7 +18,7 @@ describe('roulette package-runtime consumer', () => {
     assert.match(app, /from 'kaspa-pof-api\/browser'/);
     assert.match(app, /verifyFairnessProof/);
     assert.match(app, /deriveOutcome/);
-    assert.equal(examplePackage.dependencies['kaspa-pof-api'], '0.1.0-alpha.1');
+    assert.equal(examplePackage.dependencies['kaspa-pof-api'], '0.1.0-alpha.2');
     assert.match(index, /"kaspa-pof-api\/browser"/);
     assert.match(index, /node_modules\/kaspa-pof-api\/src\/browser\.mjs/);
     assert.doesNotMatch(index, /"\/src\/browser\.mjs"|"kaspa-pof-api"\s*:\s*"\/src\//);
@@ -90,8 +90,15 @@ describe('roulette package-runtime consumer', () => {
     assert.match(server, /ROULETTE_KASPA_WRPC_ENDPOINTS/);
     assert.match(server, /WRPC_CONNECT_RACE_MS/);
     assert.match(server, /RpcConnectMs/);
+    assert.match(server, /ROULETTE_MAX_RETAINED_ROUNDS/);
+    assert.match(server, /ROULETTE_MAX_RETAINED_SPINS/);
+    assert.match(server, /ROULETTE_ROUND_RETENTION_TTL_MS/);
+    assert.match(server, /ROULETTE_SPIN_RETENTION_TTL_MS/);
+    assert.match(server, /pruneRetainedState/);
+    assert.match(server, /req\.method === 'HEAD'/);
     assert.match(server, /require\('kaspa-pof-api'\)/);
     assert.match(server, /roulette-wheel-renderer\.js/);
+    assert.doesNotMatch(server, /logPath: spin\.logPath/);
     assert.doesNotMatch(server, /require\('\.\.\/\.\.\/src\/index\.cjs'\)|\/src\/browser\.mjs|path\.join\(ROOT, 'src\//);
     assert.doesNotMatch(server, /local_bundle_only|\/v1\/proofs\/verify|verified\s*:\s*true/i);
   });

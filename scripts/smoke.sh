@@ -295,13 +295,19 @@ const app = fs.readFileSync('examples/roulette-poc/app.js', 'utf8');
 const index = fs.readFileSync('examples/roulette-poc/index.html', 'utf8');
 const server = fs.readFileSync('examples/roulette-poc/server.cjs', 'utf8');
 const pkg = JSON.parse(fs.readFileSync('examples/roulette-poc/package.json', 'utf8'));
-if (pkg.dependencies['kaspa-pof-api'] !== '0.1.0-alpha.1') throw new Error('roulette PoC must pin the published kaspa-pof-api version');
+if (pkg.dependencies['kaspa-pof-api'] !== '0.1.0-alpha.2') throw new Error('roulette PoC must pin the published kaspa-pof-api version');
 if (!app.includes("from 'kaspa-pof-api/browser'")) throw new Error('roulette browser must import kaspa-pof-api/browser');
 if (!index.includes('"kaspa-pof-api/browser"')) throw new Error('roulette import map must expose kaspa-pof-api/browser');
 if (!index.includes('/examples/roulette-poc/node_modules/kaspa-pof-api/src/browser.mjs')) throw new Error('roulette import map must serve installed package browser export');
 if (index.includes('"/src/browser.mjs"') || /"kaspa-pof-api"\s*:\s*"\/src\//.test(index)) throw new Error('roulette import map must not use repo-local /src source');
 if (!server.includes("require('kaspa-pof-api')")) throw new Error('roulette server package sanity check must use installed package');
 if (server.includes("require('../../src/index.cjs')") || server.includes("path.join(ROOT, 'src/")) throw new Error('roulette server must not serve repo-local package source');
+if (!server.includes("req.method === 'HEAD'")) throw new Error('roulette health endpoint must support HEAD');
+for (const required of ['ROULETTE_MAX_RETAINED_ROUNDS', 'ROULETTE_MAX_RETAINED_SPINS', 'ROULETTE_ROUND_RETENTION_TTL_MS', 'ROULETTE_SPIN_RETENTION_TTL_MS', 'pruneRetainedState']) {
+  if (!server.includes(required)) throw new Error(`roulette retention hardening missing ${required}`);
+}
+if (server.includes('logPath: spin.logPath')) throw new Error('roulette server must not expose filesystem logPath in public responses or SSE payloads');
+if (app.includes('createdSpin.logPath') || app.includes('spinLogPath') || app.includes('data.logPath')) throw new Error('roulette browser must not consume public filesystem logPath values');
 NODE
 ! grep -q 'kaspa-toccata-api' examples/roulette-poc/index.html || fail KASPA_POF_NO_OLD_IMPORT_MAP
 ! grep -q "from 'kaspa-toccata-api'" examples/roulette-poc/app.js || fail KASPA_POF_NO_OLD_APP_IMPORT
@@ -317,6 +323,7 @@ done
 ! grep -Ri --exclude-dir=node_modules "KAS wager\|KAS payout\|TN10 wager\|TN10 payout\|bankroll\|deposit\|withdraw" examples/roulette-poc >/dev/null || fail KASPA_POF_ROULETTE_NO_REAL_MONEY_WORDING
 ! grep -q "sessionProfitLoss\|roundAccounting" examples/roulette-poc/server.cjs || fail KASPA_POF_ROULETTE_ACCOUNTING_NOT_IN_SERVER
 pass KASPA_POF_ROULETTE_DEMO_ACCOUNTING
+pass KASPA_POF_ROULETTE_OPERATIONAL_HARDENING
 ! grep -R --exclude-dir=node_modules "local_bundle_only\|browser-local-bundle-entropy\|deriveLocalEntropy" examples/roulette-poc >/dev/null || fail KASPA_POF_ROULETTE_NO_LOCAL_ONLY_PROOF
 pass KASPA_POF_ROULETTE_IMPORT_WIRING
 pass KASPA_POF_ROULETTE_TN10_VERIFY

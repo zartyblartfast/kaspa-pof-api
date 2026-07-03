@@ -4,6 +4,6 @@
   "private": true,
   "description": "Roulette PoC consumer for the published kaspa-pof-api package runtime",
   "dependencies": {
-    "kaspa-pof-api": "0.1.0-alpha.1"
+    "kaspa-pof-api": "0.1.0-alpha.2"
   }
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-PACKAGE_VERSION="${1:-0.1.0-alpha.1}"
+PACKAGE_VERSION="${1:-0.1.0-alpha.2}"
 export PACKAGE_VERSION
 PACKAGE_SPEC="kaspa-pof-api@${PACKAGE_VERSION}"
 TMP_DIR="$(mktemp -d)"
@@ -27,7 +27,7 @@ const packageRoot = path.dirname(path.dirname(require.resolve('kaspa-pof-api')))
 const packageJson = JSON.parse(fs.readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
 
 assert.equal(packageJson.name, 'kaspa-pof-api');
-assert.equal(packageJson.version, process.env.PACKAGE_VERSION ?? '0.1.0-alpha.1');
+assert.equal(packageJson.version, process.env.PACKAGE_VERSION ?? '0.1.0-alpha.2');
 assert.ok(packageJson.exports['.'], 'root export must exist');
 assert.ok(packageJson.exports['./browser'], 'browser export must exist');
 assert.equal(packageJson.exports['./http-client'], undefined, 'legacy HTTP client must not be exported');

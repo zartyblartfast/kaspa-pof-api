@@ -35,6 +35,10 @@ const TN10_MAX_ATTEMPTS = Number(process.env.ROULETTE_TN10_MAX_ATTEMPTS || 90);
 const TN10_POLL_MS = Number(process.env.ROULETTE_TN10_POLL_MS || 500);
 const APP_ROOT = path.resolve(__dirname);
 const RUNTIME_LOG_ROOT = process.env.ROULETTE_RUNTIME_LOG_ROOT || path.join(APP_ROOT, '.runtime', 'spins');
+const ROUND_RETENTION_TTL_MS = nonNegativeNumber(process.env.ROULETTE_ROUND_RETENTION_TTL_MS, 60 * 60 * 1000);
+const SPIN_RETENTION_TTL_MS = nonNegativeNumber(process.env.ROULETTE_SPIN_RETENTION_TTL_MS, 60 * 60 * 1000);
+const MAX_RETAINED_ROUNDS = positiveInteger(process.env.ROULETTE_MAX_RETAINED_ROUNDS, 1000);
+const MAX_RETAINED_SPINS = positiveInteger(process.env.ROULETTE_MAX_RETAINED_SPINS, 1000);
 const rounds = new Map();
 const spins = new Map();
 const endpointPenaltyUntil = new Map();
@@ -48,13 +52,15 @@ function createRoulettePocServer() {
     try {
       if (req.method === 'OPTIONS') return sendJson(res, 204, {});
       const url = new URL(req.url, `http://${req.headers.host || `${HOST}:${PORT}`}`);
-      if (req.method === 'GET' && url.pathname === '/examples/roulette-poc/health') {
-        return sendJson(res, 200, {
+      if ((req.method === 'GET' || req.method === 'HEAD') && url.pathname === '/examples/roulette-poc/health') {
+        const health = {
           ok: true,
           service: 'kaspa-pof-api-roulette-poc',
           claimLevel: 'tn10_future_entropy',
           networkId: NETWORK_ID,
-        });
+        };
+        if (req.method === 'HEAD') return sendHead(res, 200, 'application/json; charset=utf-8');
+        return sendJson(res, 200, health);
       }
       if (req.method === 'POST' && url.pathname === '/examples/roulette-poc/rounds') {
         return sendJson(res, 201, await createRound());
@@ -77,10 +83,12 @@ function createRoulettePocServer() {
 }
 
 async function createRound() {
+  pruneRetainedState();
   const serverSeed = `server-${randomHex(32)}`;
   const commitment = hashCommitment(serverSeed);
+  const nowMs = Date.now();
   const round = {
-    roundId: `roulette-${Date.now()}-${randomHex(4)}`,
+    roundId: `roulette-${nowMs}-${randomHex(4)}`,
     appId: 'examples/roulette-poc',
     claimLevel: 'tn10_future_entropy',
     network: { family: 'kaspa', networkId: NETWORK_ID, label: 'kaspa-tn10' },
@@ -88,12 +96,15 @@ async function createRound() {
     serverSeed,
     status: 'chips_open',
     createdAt: new Date().toISOString(),
+    createdAtMs: nowMs,
   };
   rounds.set(round.roundId, round);
+  pruneRetainedState();
   return { round: publicRound(round) };
 }
 
 function startSpinSession(roundId, input = {}) {
+  pruneRetainedState();
   const round = rounds.get(roundId);
   if (!round) throw httpError(404, `round ${roundId} not found`);
   if (round.status !== 'chips_open') throw httpError(409, `round ${roundId} is already closed`);
@@ -125,6 +136,7 @@ function startSpinSession(roundId, input = {}) {
     error: null,
   };
   spins.set(spinId, spin);
+  pruneRetainedState();
   fs.mkdirSync(RUNTIME_LOG_ROOT, { recursive: true });
 
   round.status = 'waiting_for_tn10_entropy';
@@ -134,7 +146,7 @@ function startSpinSession(roundId, input = {}) {
   emitSpinEvent(spin, 'spin_accepted', {
     round: publicRound(round),
     diagnostics,
-    logPath: spin.logPath,
+    diagnosticId: spin.spinId,
   });
   emitSpinEvent(spin, 'ledger_locked', {
     ledgerHash,
@@ -157,9 +169,9 @@ function startSpinSession(roundId, input = {}) {
 
   return {
     spinId,
+    diagnosticId: spinId,
     eventsUrl: `/examples/roulette-poc/rounds/${encodeURIComponent(roundId)}/spins/${encodeURIComponent(spinId)}/events`,
     diagnostics: publicDiagnostics(spin.diagnostics),
-    logPath: spin.logPath,
   };
 }
 
@@ -249,7 +261,7 @@ async function runSpinSession(spin, round, clientSeed, ledgerHash) {
     proof,
     serverPackageCheck,
     diagnostics: finalDiagnostics,
-    logPath: spin.logPath,
+    diagnosticId: spin.spinId,
   };
   emitSpinEvent(spin, 'proof_bundle_ready', spin.finalPayload);
 }
@@ -735,6 +747,62 @@ function sendJson(res, statusCode, body) {
   res.end(`${JSON.stringify(body, null, 2)}\n`);
 }
 
+function sendHead(res, statusCode, contentType) {
+  res.writeHead(statusCode, commonHeaders(contentType));
+  res.end();
+}
+
+function pruneRetainedState(nowMs = Date.now()) {
+  pruneMapByAgeAndLimit(rounds, {
+    nowMs,
+    ttlMs: ROUND_RETENTION_TTL_MS,
+    maxEntries: MAX_RETAINED_ROUNDS,
+    timestamp: (round) => round.createdAtMs || Date.parse(round.createdAt) || 0,
+  });
+  pruneMapByAgeAndLimit(spins, {
+    nowMs,
+    ttlMs: SPIN_RETENTION_TTL_MS,
+    maxEntries: MAX_RETAINED_SPINS,
+    timestamp: (spin) => spin.startedAtMs || 0,
+    onDelete: closeRetainedSpin,
+  });
+}
+
+function pruneMapByAgeAndLimit(map, { nowMs, ttlMs, maxEntries, timestamp, onDelete }) {
+  for (const [key, value] of map) {
+    if (ttlMs > 0 && nowMs - timestamp(value) > ttlMs) deleteRetainedEntry(map, key, value, onDelete);
+  }
+  if (map.size <= maxEntries) return;
+  const overflow = [...map.entries()]
+    .sort(([, left], [, right]) => timestamp(left) - timestamp(right))
+    .slice(0, map.size - maxEntries);
+  for (const [key, value] of overflow) deleteRetainedEntry(map, key, value, onDelete);
+}
+
+function deleteRetainedEntry(map, key, value, onDelete) {
+  if (!map.delete(key)) return;
+  if (onDelete) onDelete(value);
+}
+
+function closeRetainedSpin(spin) {
+  for (const client of spin.clients || []) {
+    client.res.end();
+  }
+  if (spin.clients) spin.clients.clear();
+}
+
+function positiveInteger(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const number = Number(value);
+  return Number.isInteger(number) && number > 0 ? number : fallback;
+}
+
+function nonNegativeNumber(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : fallback;
+}
+
 function streamSpinEvents(res, roundId, spinId) {
   const spin = spins.get(spinId);
   if (!spin || spin.roundId !== roundId) return sendJson(res, 404, { error: `spin ${spinId} not found` });
@@ -824,7 +892,7 @@ function commonHeaders(contentType) {
     'content-type': contentType,
     'cache-control': 'no-store',
     'access-control-allow-origin': '*',
-    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-methods': 'GET,HEAD,POST,OPTIONS',
     'access-control-allow-headers': 'content-type',
   };
 }

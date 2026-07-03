@@ -7,10 +7,10 @@ Trust boundary:
 - The roulette PoC server owns roulette round orchestration, hidden server-seed custody, chip-ledger locking, and TN10 evidence fetching.
 - The server starts each spin as a diagnostic SSE session, locks the chip ledger, fetches TN10 evidence, and streams live progress events while the browser waits.
 - The final SSE event returns a portable `tn10_future_entropy` proof bundle containing commitment, ledger, TN10 block evidence, reveal data, and roulette outcome evidence.
-- The browser imports `kaspa-pof-api/browser` from this example's installed `node_modules/kaspa-pof-api@0.1.0-alpha.1` dependency and calls `verifyFairnessProof()` itself after the proof bundle arrives.
+- The browser imports `kaspa-pof-api/browser` from this example's installed `node_modules/kaspa-pof-api@0.1.0-alpha.2` dependency and calls `verifyFairnessProof()` itself after the proof bundle arrives.
 - The browser displays the package verifier result. There is no trusted legacy proof-verdict endpoint.
 - The browser also displays demo-unit-only round accounting after package verification: round stake, returned units, round net, and a browser-memory-only session P/L guarded by settled round IDs. This accounting is not persisted, not sent to the server, and not included in proof bundles.
-- The server writes per-spin JSONL diagnostics to `examples/roulette-poc/.runtime/spins/<spinId>.jsonl`; these logs intentionally summarize proof/timing data and do not log the hidden server seed.
+- The server writes per-spin JSONL diagnostics to `examples/roulette-poc/.runtime/spins/<spinId>.jsonl`; these logs intentionally summarize proof/timing data and do not log the hidden server seed. Public HTTP/SSE payloads expose only spin/diagnostic ids, not filesystem log paths.
 
 Run from the repository root:
 
@@ -36,5 +36,13 @@ Optional live RPC tuning:
 - `ROULETTE_KASPA_WRPC_CONNECT_RACE_MS` bounds each explicit endpoint dial attempt during the endpoint race. The first endpoint to connect wins; timed-out endpoints are temporarily penalized.
 - `ROULETTE_KASPA_WRPC_ENDPOINT_PENALTY_MS` controls how long a timed-out or failed endpoint is deprioritized.
 - If all configured endpoints fail the bounded race, the server falls back to the rusty-kaspa resolver and records that fallback in the per-spin diagnostics.
+
+Optional public-demo retention tuning:
+
+- `ROULETTE_ROUND_RETENTION_TTL_MS` bounds in-memory round lifetime; default `3600000`.
+- `ROULETTE_SPIN_RETENTION_TTL_MS` bounds in-memory spin/SSE event lifetime; default `3600000`.
+- `ROULETTE_MAX_RETAINED_ROUNDS` bounds retained in-memory rounds; default `1000`.
+- `ROULETTE_MAX_RETAINED_SPINS` bounds retained in-memory spins; default `1000`.
+- `HEAD /examples/roulette-poc/health` is supported for uptime checks without a response body; `GET` still returns the JSON health payload.
 
 The package core stays app-agnostic. Roulette-specific result derivation remains in this example consumer through the `roulette-poc:number-v1` outcome deriver.

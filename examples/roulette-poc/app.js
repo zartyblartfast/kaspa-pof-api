@@ -177,9 +177,8 @@ import {
         })
       );
       state.diagnostics = createdSpin.diagnostics;
-      state.trace.spinLogPath = createdSpin.logPath;
       appendDiagnosticEvent('spin_session_created', createdSpin);
-      setOperation('Diagnostic stream connected', `Spin ${createdSpin.spinId} started. Log: ${createdSpin.logPath || 'server runtime log pending'}.`, 'busy');
+      setOperation('Diagnostic stream connected', `Spin ${createdSpin.spinId} started. Server runtime logs stay private; public diagnostics use event id ${createdSpin.diagnosticId || createdSpin.spinId}.`, 'busy');
       renderAll();
 
       const payload = await consumeSpinEvents(createdSpin.eventsUrl);
@@ -720,7 +719,7 @@ import {
     if (event === 'rpc_disconnecting') return `${data.phase} disconnecting`;
     if (event === 'rpc_disconnected') return `${data.phase} disconnected in ${data.disconnectMs}ms${data.error ? `, ${data.error}` : ''}`;
     if (event === 'browser_package_verification') return `browser check ${data.browserVerificationMs}ms, ok ${data.ok}`;
-    if (event === 'spin_session_created') return `log ${data.logPath || 'pending'}`;
+    if (event === 'spin_session_created') return `diagnostic id ${data.diagnosticId || data.spinId || 'pending'}`;
     if (event === 'spin_error') return data.message || 'spin failed';
     if (event === 'sse_stalled') return data.message || 'no diagnostic event received';
     if (event === 'sse_transport_error') return data.message || 'SSE transport error';

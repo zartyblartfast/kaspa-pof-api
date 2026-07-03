@@ -26,7 +26,7 @@ Given a pre-committed hidden server input, fixed user/app inputs, and future Kas
 `examples/roulette-poc/` is an example consumer, not package core. It now demonstrates the intended production trust boundary:
 
 - `examples/roulette-poc/server.cjs` is roulette-specific infrastructure for round creation, hidden server seed custody, chip-ledger locking, live TN10 future-block evidence fetching, bounded WRPC endpoint racing/fallback, SSE diagnostics, JSONL runtime logs, and portable proof-bundle assembly.
-- `examples/roulette-poc/app.js` imports `kaspa-pof-api/browser` from the example's installed `kaspa-pof-api@0.1.0-alpha.1` dependency and verifies the returned `tn10_future_entropy` proof bundle through `verifyFairnessProof()` with a roulette-specific outcome deriver.
+- `examples/roulette-poc/app.js` imports `kaspa-pof-api/browser` from the example's installed `kaspa-pof-api@0.1.0-alpha.2` dependency and verifies the returned `tn10_future_entropy` proof bundle through `verifyFairnessProof()` with a roulette-specific outcome deriver.
 - The server does not expose a trusted proof-verdict endpoint. Any service path is evidence plumbing; the package runtime remains the verifier.
 - Demo-unit round accounting is implemented only in the browser example after successful package verification. It shows round stake/returned/net and browser-memory-only session P/L, does not imply KAS/TN10 wagers or payouts, and is not persisted to the server, chain, local storage, or proof bundle.
 
@@ -385,7 +385,7 @@ Roulette-specific consumer code may include:
 
 Roulette-specific code must not become required by the core package.
 
-Before calling the PoC an npm API showcase, publish `kaspa-pof-api@0.1.0-alpha.1`, add/verify a browser-safe export such as `kaspa-pof-api/browser`, install/pin the published package under `examples/roulette-poc/`, and serve or bundle that installed package export instead of the repo-root source file.
+Before calling the PoC an npm API showcase, publish `kaspa-pof-api`, add/verify a browser-safe export such as `kaspa-pof-api/browser`, install/pin the published package under `examples/roulette-poc/`, and serve or bundle that installed package export instead of the repo-root source file.
 
 ## Mainnet policy
 

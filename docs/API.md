@@ -199,7 +199,7 @@ No mainnet transaction submission helper exists in this package. Mainnet paid an
 
 ## Published-package consumer target
 
-The roulette PoC now showcases the published npm API instead of local repo source. It pins `kaspa-pof-api@0.1.0-alpha.1` under `examples/roulette-poc/`, imports `kaspa-pof-api/browser` in the browser, and serves the installed browser export from `examples/roulette-poc/node_modules/kaspa-pof-api/src/browser.mjs`.
+The roulette PoC now showcases the published npm API instead of local repo source. It pins `kaspa-pof-api@0.1.0-alpha.2` under `examples/roulette-poc/`, imports `kaspa-pof-api/browser` in the browser, and serves the installed browser export from `examples/roulette-poc/node_modules/kaspa-pof-api/src/browser.mjs`.
 
 Wiring details and anti-stale-code guards are recorded in `docs/ROULETTE_NPM_CONSUMER_WIRING.md`. The key guardrails are:
 

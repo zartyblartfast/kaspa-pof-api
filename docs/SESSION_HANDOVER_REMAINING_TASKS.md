@@ -1,6 +1,6 @@
 # Session Handover: Remaining Tasks
 
-Date: 2026-07-02
+Date: 2026-07-03
 Project root: `/root/kaspa-pof-api`
 
 ## Current state
@@ -12,15 +12,15 @@ The package root exports reusable proof/fairness primitives, not the legacy HTTP
 Current package version:
 
 ```text
-0.1.0-alpha.1
+0.1.0-alpha.2
 ```
 
 Latest committed baseline:
 
 ```text
+2ed5da0 fix: fail closed for malformed anchored proofs
+00e5441 chore: publish public roulette PoC on kaspaproof.com
 fee0ec4 docs: clarify npm package consumer boundary
-dee2579 feat: add roulette diagnostics endpoint racing
-8cfe36b feat: verify roulette runtime consumer
 ```
 
 ## Implemented root API direction
@@ -63,7 +63,7 @@ roulette-specific Node server creates/coordinates round and supplies evidence
         ↓
 server returns portable tn10_future_entropy proof bundle
         ↓
-browser imports kaspa-pof-api/browser from examples/roulette-poc/node_modules/kaspa-pof-api@0.1.0-alpha.1
+browser imports kaspa-pof-api/browser from examples/roulette-poc/node_modules/kaspa-pof-api@0.1.0-alpha.2
         ↓
 browser calls verifyFairnessProof() with roulette outcome deriver
         ↓
@@ -99,7 +99,7 @@ Roulette PoC details:
 
 - `examples/roulette-poc/server.cjs` is roulette-specific infrastructure, not package core.
 - It creates committed rounds, holds hidden server seed material, accepts locked chip ledgers, chooses a TN10 future entropy target, fetches real TN10 block evidence through rusty-kaspa WASM, races bounded TN10 WRPC endpoints with resolver fallback, streams SSE diagnostics, writes per-spin JSONL logs, assembles a portable `tn10_future_entropy` proof bundle, and sanity-checks it with `verifyFairnessProof()`.
-- `examples/roulette-poc/app.js` imports `kaspa-pof-api/browser` from the example's installed `node_modules/kaspa-pof-api@0.1.0-alpha.1`, receives the proof bundle, supplies `roulette-poc:number-v1` as the app-specific outcome deriver, and verifies the proof in the browser.
+- `examples/roulette-poc/app.js` imports `kaspa-pof-api/browser` from the example's installed `node_modules/kaspa-pof-api@0.1.0-alpha.2`, receives the proof bundle, supplies `roulette-poc:number-v1` as the app-specific outcome deriver, and verifies the proof in the browser.
 - Published-package wiring is documented in `docs/ROULETTE_NPM_CONSUMER_WIRING.md`. Tests and smoke now fail if the PoC maps back to repo-root `/src/browser.mjs`, serves repo-root package source, uses a trusted proof-verdict endpoint, or uses static/fake proof data.
 - The previous `local_bundle_only` browser-local entropy path was removed from the roulette PoC.
 - No trusted proof-verdict endpoint should be reintroduced.
@@ -141,66 +141,51 @@ Open locally or through SSH forwarding:
 http://127.0.0.1:8123/examples/roulette-poc/
 ```
 
-Live browser spins have reached `Browser package verified TN10 proof` with the package verifier result displayed in the UI. Recent endpoint-race diagnostics show sub-second to ~1.4s spin totals after avoiding slow single-endpoint connect paths.
+Public demo URL:
+
+```text
+https://kaspaproof.com/examples/roulette-poc/
+```
+
+Live browser spins have reached browser/package verification over the public domain with `TN10 proof verified in browser` displayed in the UI. Recent endpoint-race diagnostics show sub-second to ~1.4s spin totals after avoiding slow single-endpoint connect paths.
 
 ## Latest verification evidence
 
-After the roulette runtime-consumer, SSE diagnostics, bounded endpoint race, and diagnostics-tile stabilization work:
-
-```bash
-npm run test
-npm run smoke
-```
-
-Results:
+Latest source baseline before this handover update:
 
 ```text
-npm run test: PASS
-77 tests
-22 suites
-0 failures
-
-npm run smoke: PASS
-KASPA_POF_REQUIRED_FILES=PASS
-KASPA_POF_ROULETTE_JS_SYNTAX=PASS
-KASPA_POF_PACKAGE_IMPORT=PASS
-KASPA_POF_COMMITMENT_VERIFY=PASS
-KASPA_POF_LEDGER_HASH=PASS
-KASPA_POF_ENTROPY_DERIVE=PASS
-KASPA_POF_OUTCOME_DERIVE=PASS
-KASPA_POF_KASPA_EVIDENCE_VALIDATE=PASS
-KASPA_POF_ANCHOR_EVIDENCE_VALIDATE=PASS
-KASPA_POF_SUBMITTED_ANCHOR_TX_EVIDENCE=PASS
-KASPA_POF_TN10_BROADCAST_POLICY=PASS
-KASPA_POF_PROOF_VERIFY_LOCAL=PASS
-KASPA_POF_PROOF_ROOT_ANCHORED=PASS
-KASPA_POF_PUBLIC_EXAMPLES=PASS
-KASPA_POF_PACKAGE_METADATA=PASS
-KASPA_POF_ROULETTE_IMPORT_WIRING=PASS
-KASPA_POF_ROULETTE_TN10_VERIFY=PASS
-KASPA_POF_NO_FIXTURE_TRAPS=PASS
-KASPA_POF_SMOKE=PASS
+2ed5da0 fix: fail closed for malformed anchored proofs
 ```
 
-After the diagnostics-doc updates:
+Current verification after public-demo hardening and `0.1.0-alpha.2` publication:
 
 ```text
-npm pack --dry-run: PASS
-53 files
-package candidate: kaspa-pof-api-0.1.0-alpha.1.tgz
+git diff --check: PASS
+npm test: PASS, 86 tests, 23 suites, 0 failures
+npm run smoke: PASS, including KASPA_POF_ROULETTE_OPERATIONAL_HARDENING=PASS and KASPA_POF_SMOKE=PASS
+npm run smoke:published: PASS against kaspa-pof-api@0.1.0-alpha.2, including KASPA_POF_PUBLISHED_SMOKE=PASS
+npm pack --dry-run: PASS, 56 files, kaspa-pof-api-0.1.0-alpha.2.tgz
+```
+
+Public deployment health after push:
+
+```text
+GET https://kaspaproof.com/examples/roulette-poc/health: ok=true, claimLevel=tn10_future_entropy, networkId=testnet-10
+caddy: active/enabled
+kaspa-pof-roulette.service: active/enabled
 ```
 
 Re-run `npm pack --dry-run` before any publish/package-content decision.
 
 ## Current package publication status
 
-`kaspa-pof-api@0.1.0-alpha.1` is published to npm. The older published npm package `kaspa-toccata-api@0.1.1` belongs to the previous HTTP-client-centered repo.
+`kaspa-pof-api@0.1.0-alpha.2` is published to npm. The older published npm package `kaspa-toccata-api@0.1.1` belongs to the previous HTTP-client-centered repo.
 
 Completed before claiming the roulette PoC showcases the npm API:
 
-1. Published `kaspa-pof-api@0.1.0-alpha.1`.
+1. Published `kaspa-pof-api@0.1.0-alpha.2`.
 2. Added/verified browser-safe package export `kaspa-pof-api/browser`.
-3. Added `examples/roulette-poc/package.json` and `package-lock.json` pinning `kaspa-pof-api@0.1.0-alpha.1`.
+3. Added `examples/roulette-poc/package.json` and `package-lock.json` pinning `kaspa-pof-api@0.1.0-alpha.2`.
 4. Served the installed package browser export from `examples/roulette-poc/node_modules/kaspa-pof-api/src/browser.mjs`; the PoC no longer maps to `/src/browser.mjs`.
 5. Added regression checks that fail if the PoC uses local repo source, a trusted proof-verdict endpoint, or static/fake proof data.
 
@@ -212,7 +197,7 @@ Do not move proof verification back into a Node/server. A server may submit anch
 
 ## Current git status expectation
 
-Latest local commit is expected to be `fee0ec4 docs: clarify npm package consumer boundary`; working tree should be clean unless current handover updates are in progress. If publishing from a new session, check whether `fee0ec4` has been pushed before relying on the remote branch.
+After the housekeeping commit requested on 2026-07-03 is pushed, `main` should be clean and aligned with `origin/main`. If not, inspect `git status --short` before changing code.
 
 Start `/new` with:
 
@@ -234,6 +219,59 @@ git diff --stat
 - Verification must fail closed on missing, inconsistent, or unknown evidence.
 - Do not publish to npm without explicit agreement on contents/version/auth state first.
 - Do not commit unless the user asks.
+
+## Latest completed task: fail-closed malformed anchored proof verification
+
+The latest pushed source commit is:
+
+```text
+2ed5da0 fix: fail closed for malformed anchored proofs
+```
+
+It fixes a review finding where `verifyFairnessProof()` could throw for malformed anchored proof objects. ESM and CJS verifier paths now convert malformed anchor payload-hash/proof-root inputs into structured fail-closed errors. Regression tests cover malformed `tn10_tx_anchored` and `tn10_proof_root_anchored` proof objects in both ESM and CJS test paths.
+
+This fix is committed, pushed to GitHub, and published to npm in `kaspa-pof-api@0.1.0-alpha.2`.
+
+## Public hosting state
+
+- Domain: `https://kaspaproof.com/examples/roulette-poc/`
+- DNS: GoDaddy `A @ -> 187.124.210.10`; `www` CNAMEs to `kaspaproof.com`.
+- Caddy: `/etc/caddy/Caddyfile`, HTTPS for `kaspaproof.com`/`www`, proxies `/examples/roulette-poc/*` to `127.0.0.1:8123`.
+- Roulette service: `/etc/systemd/system/kaspa-pof-roulette.service`, active/enabled, runtime logs under `/var/log/kaspa-pof-roulette/spins`.
+- Service uses `/root/.hermes/node/bin/node`; this works but is operationally less stable than a system/project-pinned Node path.
+
+## Latest completed task: public-demo operational hardening
+
+Implemented app-level public-demo hardening in `examples/roulette-poc/` while preserving browser/package proof authority:
+
+1. Public spin creation responses and SSE events no longer expose filesystem `logPath`; they expose `spinId`/`diagnosticId` while server-side JSONL logs remain server-side under `ROULETTE_RUNTIME_LOG_ROOT`.
+2. `HEAD /examples/roulette-poc/health` returns 200 with no response body; `GET /health` still returns the JSON health payload.
+3. In-memory `rounds` and `spins` are bounded by TTL and maximum retained entries:
+   - `ROULETTE_ROUND_RETENTION_TTL_MS` default `3600000`
+   - `ROULETTE_SPIN_RETENTION_TTL_MS` default `3600000`
+   - `ROULETTE_MAX_RETAINED_ROUNDS` default `1000`
+   - `ROULETTE_MAX_RETAINED_SPINS` default `1000`
+4. Regression coverage: `test/roulette-server-hardening.test.mjs`, `test/roulette-runtime-consumer.test.mjs`, and `scripts/smoke.sh`.
+
+Latest verification for this increment:
+
+```text
+git diff --check: PASS
+npm test: PASS, 86 tests, 23 suites, 0 failures
+npm run smoke: PASS, including KASPA_POF_ROULETTE_OPERATIONAL_HARDENING=PASS and KASPA_POF_SMOKE=PASS
+npm pack --dry-run: PASS, 56 files, kaspa-pof-api-0.1.0-alpha.2.tgz
+systemctl restart kaspa-pof-roulette.service: PASS; caddy and kaspa-pof-roulette.service active
+Public HEAD /examples/roulette-poc/health: 200 with no response body
+Public GET /examples/roulette-poc/health: ok=true, claimLevel=tn10_future_entropy, networkId=testnet-10
+Public API spin/SSE proof: PASS, no public logPath/server path, package verification ok, claimLevel=tn10_future_entropy
+Public browser spin: PASS, UI reached `TN10 proof verified in browser`; browser console had 0 messages / 0 JS errors
+```
+
+Remaining separate operational items:
+
+1. Add rate limiting for public round/spin POST endpoints.
+2. Add logrotate for `/var/log/kaspa-pof-roulette/spins/*.jsonl`.
+3. Consider Caddy security headers after browser testing.
 
 ## Latest completed task: roulette demo-unit win/loss display
 
@@ -314,8 +352,4 @@ npm run smoke
 npm pack --dry-run
 ```
 
-3. Decide the next coherent increment. Likely options:
-
-- review package tarball/version and decide whether a follow-up npm package version should be published for the browser export/example/docs milestone;
-- improve roulette demo diagnostics/UX only if a specific issue is observed;
-- continue package API hardening without moving roulette settlement or proof authority into the server.
+3. Decide the next coherent increment. Recommended next: add rate limiting for public round/spin POST endpoints, then separately logrotate for `/var/log/kaspa-pof-roulette/spins/*.jsonl`. Preserve browser/package proof authority and do not move verification into the server.
