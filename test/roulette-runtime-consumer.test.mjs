@@ -42,9 +42,35 @@ describe('roulette package-runtime consumer', () => {
     assert.doesNotMatch(index, /Kaspa Toccata API|API round|returned by the API|local_bundle_only/i);
     assert.match(flow, /TN10 Future Entropy/i);
     assert.match(flow, /Package Runtime/i);
+    assert.match(app, /drawFlowchartEdges/);
+    assert.match(app, /marker-end/);
+    assert.doesNotMatch(app, /renderEdgeConnector/);
     assert.doesNotMatch(flow, /returned by the API|GET \/entropy|\/v1\/|local_bundle_only/i);
     assert.doesNotMatch(layout, /\/v1 API responses/i);
     assert.doesNotMatch(index, /"\/src\/browser\.mjs"|"kaspa-pof-api"\s*:\s*"\/src\//);
+  });
+
+  it('keeps the full flowchart sequence aligned with the compact summary', () => {
+    const flow = JSON.parse(fs.readFileSync(FLOW_PATH, 'utf8'));
+    const edgePairs = flow.edges.map((edge) => [edge.from, edge.to]);
+    const expectedPath = [
+      ['round-ready', 'commitment'],
+      ['commitment', 'chips'],
+      ['chips', 'spin'],
+      ['spin', 'ledger'],
+      ['ledger', 'tn10-entropy'],
+      ['tn10-entropy', 'proof-bundle'],
+      ['proof-bundle', 'outcome'],
+      ['outcome', 'verified'],
+    ];
+    assert.deepEqual(edgePairs, expectedPath);
+
+    const compactNodes = new Set(flow.compact.rows.flatMap((row) => row.nodeIds).filter(Boolean));
+    for (const node of expectedPath.flat()) assert.ok(compactNodes.has(node), `${node} missing from compact summary`);
+    const nodeTitles = new Map(flow.nodes.map((node) => [node.id, node.title]));
+    assert.equal(nodeTitles.get('commitment'), 'Commitment fixed');
+    assert.equal(nodeTitles.get('chips'), 'Player places chips');
+    assert.equal(nodeTitles.get('verified'), 'Browser package verifies proof');
   });
 
   it('keeps roulette demo-unit accounting browser-local and gated by browser proof verification', () => {

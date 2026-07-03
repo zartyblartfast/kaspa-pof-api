@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import http from 'node:http';
 import { createRequire } from 'node:module';
 import { afterEach, describe, it } from 'node:test';
@@ -85,6 +86,88 @@ describe('roulette public-demo operational hardening', () => {
       const prunedSpinEvents = await request(`${baseUrl}${firstSpin.body.eventsUrl}`);
       assert.equal(prunedSpinEvents.statusCode, 404);
     });
+  });
+
+  it('rate limits public round creation POSTs per client address', async () => {
+    const { createRoulettePocServer } = loadServerWithEnv({
+      ROULETTE_ROUND_RATE_LIMIT_MAX: '2',
+      ROULETTE_ROUND_RATE_LIMIT_WINDOW_MS: '60000',
+    });
+    await withServer(createRoulettePocServer(), async (baseUrl) => {
+      const first = await jsonRequest(`${baseUrl}/examples/roulette-poc/rounds`, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '203.0.113.10' },
+      });
+      const second = await jsonRequest(`${baseUrl}/examples/roulette-poc/rounds`, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '203.0.113.10' },
+      });
+      const third = await jsonRequest(`${baseUrl}/examples/roulette-poc/rounds`, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '203.0.113.10' },
+      });
+      const otherClient = await jsonRequest(`${baseUrl}/examples/roulette-poc/rounds`, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '203.0.113.11' },
+      });
+
+      assert.equal(first.statusCode, 201);
+      assert.equal(second.statusCode, 201);
+      assert.equal(third.statusCode, 429);
+      assert.equal(third.body.code, 'RATE_LIMITED');
+      assert.match(third.headers['retry-after'] || '', /^\d+$/);
+      assert.equal(otherClient.statusCode, 201);
+    });
+  });
+
+  it('rate limits public spin creation POSTs without blocking round creation', async () => {
+    const { createRoulettePocServer } = loadServerWithEnv({
+      ROULETTE_ROUND_RATE_LIMIT_MAX: '10',
+      ROULETTE_SPIN_RATE_LIMIT_MAX: '1',
+      ROULETTE_SPIN_RATE_LIMIT_WINDOW_MS: '60000',
+      KASPA_WASM_PKG: '/tmp/nonexistent-kaspa-wasm-for-rate-limit-test',
+    });
+    await withServer(createRoulettePocServer(), async (baseUrl) => {
+      const clientHeaders = { 'x-forwarded-for': '203.0.113.20' };
+      const firstRound = await jsonRequest(`${baseUrl}/examples/roulette-poc/rounds`, { method: 'POST', headers: clientHeaders });
+      const secondRound = await jsonRequest(`${baseUrl}/examples/roulette-poc/rounds`, { method: 'POST', headers: clientHeaders });
+      assert.equal(firstRound.statusCode, 201);
+      assert.equal(secondRound.statusCode, 201);
+
+      const firstSpin = await jsonRequest(`${baseUrl}/examples/roulette-poc/rounds/${encodeURIComponent(firstRound.body.round.roundId)}/spins`, {
+        method: 'POST',
+        headers: clientHeaders,
+        body: JSON.stringify({ clientSeed: 'client-rate-limit-1', bets: [{ playerId: 'alice', selection: 'red', amount: 1 }] }),
+      });
+      const secondSpin = await jsonRequest(`${baseUrl}/examples/roulette-poc/rounds/${encodeURIComponent(secondRound.body.round.roundId)}/spins`, {
+        method: 'POST',
+        headers: clientHeaders,
+        body: JSON.stringify({ clientSeed: 'client-rate-limit-2', bets: [{ playerId: 'bob', selection: 'black', amount: 1 }] }),
+      });
+      const otherClientRound = await jsonRequest(`${baseUrl}/examples/roulette-poc/rounds`, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '203.0.113.21' },
+      });
+      const otherClientSpin = await jsonRequest(`${baseUrl}/examples/roulette-poc/rounds/${encodeURIComponent(otherClientRound.body.round.roundId)}/spins`, {
+        method: 'POST',
+        headers: { 'x-forwarded-for': '203.0.113.21' },
+        body: JSON.stringify({ clientSeed: 'client-rate-limit-other', bets: [{ playerId: 'eve', selection: 'green', amount: 1 }] }),
+      });
+
+      assert.equal(firstSpin.statusCode, 202);
+      assert.equal(secondSpin.statusCode, 429);
+      assert.equal(secondSpin.body.code, 'RATE_LIMITED');
+      assert.match(secondSpin.headers['retry-after'] || '', /^\d+$/);
+      assert.equal(otherClientSpin.statusCode, 202);
+    });
+  });
+
+  it('ships a logrotate policy for roulette JSONL spin diagnostics', () => {
+    const config = fs.readFileSync(new URL('../ops/logrotate.d/kaspa-pof-roulette-spins', import.meta.url), 'utf8');
+    assert.match(config, /^\/var\/log\/kaspa-pof-roulette\/spins\/\*\.jsonl \{/m);
+    for (const required of ['daily', 'rotate 14', 'compress', 'delaycompress', 'missingok', 'notifempty', 'copytruncate']) {
+      assert.ok(config.includes(required), `logrotate config missing ${required}`);
+    }
   });
 });
 

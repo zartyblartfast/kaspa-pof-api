@@ -99,6 +99,11 @@ Environment=PORT=8123
 Environment=KASPA_NETWORK_ID=testnet-10
 Environment=KASPA_WASM_PKG=/tmp/kaspa-pof-api-spikes/rusty-kaspa/wasm/nodejs/kaspa
 Environment=ROULETTE_RUNTIME_LOG_ROOT=/var/log/kaspa-pof-roulette/spins
+# Public POST throttles; tune if legitimate traffic needs more headroom.
+Environment=ROULETTE_ROUND_RATE_LIMIT_MAX=30
+Environment=ROULETTE_ROUND_RATE_LIMIT_WINDOW_MS=60000
+Environment=ROULETTE_SPIN_RATE_LIMIT_MAX=10
+Environment=ROULETTE_SPIN_RATE_LIMIT_WINDOW_MS=60000
 ExecStart=/usr/bin/node examples/roulette-poc/server.cjs
 Restart=always
 RestartSec=3
@@ -113,6 +118,15 @@ Create the runtime log directory:
 ```bash
 mkdir -p /var/log/kaspa-pof-roulette/spins
 ```
+
+Install the spin-diagnostics logrotate policy:
+
+```bash
+install -m 0644 ops/logrotate.d/kaspa-pof-roulette-spins /etc/logrotate.d/kaspa-pof-roulette-spins
+logrotate --debug /etc/logrotate.d/kaspa-pof-roulette-spins
+```
+
+The policy rotates `/var/log/kaspa-pof-roulette/spins/*.jsonl` daily, keeps 14 compressed rotations, skips missing/empty logs, and uses `copytruncate` so the running Node process can keep appending JSONL events without a restart.
 
 Start and enable:
 

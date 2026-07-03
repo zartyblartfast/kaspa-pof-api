@@ -252,27 +252,35 @@ Implemented app-level public-demo hardening in `examples/roulette-poc/` while pr
    - `ROULETTE_SPIN_RETENTION_TTL_MS` default `3600000`
    - `ROULETTE_MAX_RETAINED_ROUNDS` default `1000`
    - `ROULETTE_MAX_RETAINED_SPINS` default `1000`
-4. Regression coverage: `test/roulette-server-hardening.test.mjs`, `test/roulette-runtime-consumer.test.mjs`, and `scripts/smoke.sh`.
+4. Public round/spin creation POSTs are rate-limited per client address:
+   - `ROULETTE_ROUND_RATE_LIMIT_MAX` default `30`
+   - `ROULETTE_ROUND_RATE_LIMIT_WINDOW_MS` default `60000`
+   - `ROULETTE_SPIN_RATE_LIMIT_MAX` default `10`
+   - `ROULETTE_SPIN_RATE_LIMIT_WINDOW_MS` default `60000`
+5. A logrotate policy exists at `ops/logrotate.d/kaspa-pof-roulette-spins` for `/var/log/kaspa-pof-roulette/spins/*.jsonl`; it was installed to `/etc/logrotate.d/kaspa-pof-roulette-spins` and validated with `logrotate --debug`.
+6. The expanded Proof of Fairness flowchart now uses actual SVG source-to-target edge paths. The correct sequence is `Committed round ready -> Commitment fixed -> Player places chips -> Spin locks ledger -> Ledger hashed -> TN10 Future Entropy -> Proof bundle returned -> Outcome replayed -> Browser package verifies proof`, matching the compact summary without moving proof authority to the server.
+7. Regression coverage: `test/roulette-server-hardening.test.mjs`, `test/roulette-runtime-consumer.test.mjs`, and `scripts/smoke.sh`.
 
 Latest verification for this increment:
 
 ```text
 git diff --check: PASS
-npm test: PASS, 86 tests, 23 suites, 0 failures
-npm run smoke: PASS, including KASPA_POF_ROULETTE_OPERATIONAL_HARDENING=PASS and KASPA_POF_SMOKE=PASS
+npm test: PASS, 90 tests, 23 suites, 0 failures
+npm run smoke: PASS, including KASPA_POF_ROULETTE_LOGROTATE=PASS, KASPA_POF_ROULETTE_OPERATIONAL_HARDENING=PASS, and KASPA_POF_SMOKE=PASS
 npm pack --dry-run: PASS, 56 files, kaspa-pof-api-0.1.0-alpha.2.tgz
-systemctl restart kaspa-pof-roulette.service: PASS; caddy and kaspa-pof-roulette.service active
+logrotate --debug /etc/logrotate.d/kaspa-pof-roulette-spins: PASS
+caddy and kaspa-pof-roulette.service active
 Public HEAD /examples/roulette-poc/health: 200 with no response body
 Public GET /examples/roulette-poc/health: ok=true, claimLevel=tn10_future_entropy, networkId=testnet-10
-Public API spin/SSE proof: PASS, no public logPath/server path, package verification ok, claimLevel=tn10_future_entropy
-Public browser spin: PASS, UI reached `TN10 proof verified in browser`; browser console had 0 messages / 0 JS errors
+Public flowchart static assets: PASS, live `flowchart-spec.json` includes `commitment-to-chips` and live `app.js` includes `drawFlowchartEdges`
+Public expanded flowchart: PASS, 8 attached edge paths with labels `commit`, `enables chips`, `lock`, `hash`, `target`, `evidence`, `replay`, `verify`; browser console had 0 messages / 0 JS errors
 ```
 
 Remaining separate operational items:
 
-1. Add rate limiting for public round/spin POST endpoints.
-2. Add logrotate for `/var/log/kaspa-pof-roulette/spins/*.jsonl`.
-3. Consider Caddy security headers after browser testing.
+1. Restart `kaspa-pof-roulette.service` when ready to apply the new server-side POST rate limiting to the long-running live process. Static flowchart/browser files are already served from the working tree without restart.
+2. Consider replacing Hermes-managed Node path in systemd with a stable system/project Node path.
+3. Consider conservative Caddy security headers after browser testing.
 
 ## Latest completed task: roulette demo-unit win/loss display
 
@@ -353,4 +361,4 @@ npm run smoke
 npm pack --dry-run
 ```
 
-3. Decide the next coherent increment. Recommended next: add rate limiting for public round/spin POST endpoints, then separately logrotate for `/var/log/kaspa-pof-roulette/spins/*.jsonl`. Preserve browser/package proof authority and do not move verification into the server.
+3. Decide the next coherent increment. Recommended next: restart the live roulette service when ready to apply the new server-side POST rate limiting, then consider Caddy security headers or a stable system/project Node path. Preserve browser/package proof authority and do not move verification into the server.

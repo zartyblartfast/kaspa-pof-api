@@ -11,6 +11,7 @@ Trust boundary:
 - The browser displays the package verifier result. There is no trusted legacy proof-verdict endpoint.
 - The browser also displays demo-unit-only round accounting after package verification: round stake, returned units, round net, and a browser-memory-only session P/L guarded by settled round IDs. This accounting is not persisted, not sent to the server, and not included in proof bundles.
 - The server writes per-spin JSONL diagnostics to `examples/roulette-poc/.runtime/spins/<spinId>.jsonl`; these logs intentionally summarize proof/timing data and do not log the hidden server seed. Public HTTP/SSE payloads expose only spin/diagnostic ids, not filesystem log paths.
+- The compact proof summary and expanded Proof of Fairness flowchart are both driven by `flowchart-spec.json`. The full sequence is: committed round ready -> package commitment fixed -> player places chips -> spin locks ledger -> package hashes ledger -> TN10 future entropy -> proof bundle returned -> package outcome replay -> browser package verification.
 
 Run from the repository root:
 
@@ -43,6 +44,9 @@ Optional public-demo retention tuning:
 - `ROULETTE_SPIN_RETENTION_TTL_MS` bounds in-memory spin/SSE event lifetime; default `3600000`.
 - `ROULETTE_MAX_RETAINED_ROUNDS` bounds retained in-memory rounds; default `1000`.
 - `ROULETTE_MAX_RETAINED_SPINS` bounds retained in-memory spins; default `1000`.
+- `ROULETTE_ROUND_RATE_LIMIT_MAX` / `ROULETTE_ROUND_RATE_LIMIT_WINDOW_MS` limit public `POST /examples/roulette-poc/rounds`; defaults `30` per `60000` ms per client address.
+- `ROULETTE_SPIN_RATE_LIMIT_MAX` / `ROULETTE_SPIN_RATE_LIMIT_WINDOW_MS` limit public `POST /examples/roulette-poc/rounds/:roundId/spins`; defaults `10` per `60000` ms per client address.
+- The public service deployment should install `ops/logrotate.d/kaspa-pof-roulette-spins` to rotate `/var/log/kaspa-pof-roulette/spins/*.jsonl`.
 - `HEAD /examples/roulette-poc/health` is supported for uptime checks without a response body; `GET` still returns the JSON health payload.
 
 The package core stays app-agnostic. Roulette-specific result derivation remains in this example consumer through the `roulette-poc:number-v1` outcome deriver.

@@ -804,10 +804,11 @@ import {
     el.flowchartRoot.innerHTML = `
       <div class="flowchart-grid" style="--flow-row-count: ${spec.layout.rowCount}; --flow-row-min: ${spec.layout.rowMinHeightPx}px; --flow-column-gap: ${spec.layout.columnGapPx}px; --edge-label-font-size: ${spec.layout.edgeLabelFontSize}px">
         ${spec.lanes.map(renderLaneHeader).join('')}
-        ${spec.edges.map(renderEdgeConnector).join('')}
+        <svg class="edge-layer" aria-hidden="true"></svg>
         ${spec.nodes.map(renderFlowNode).join('')}
       </div>
     `;
+    requestAnimationFrame(() => drawFlowchartEdges(spec));
   }
 
   function hydrateFlowSpec() {
@@ -853,12 +854,6 @@ import {
     return `<header class="lane-title-card ${lane.theme === 'proof' ? 'proof-lane' : 'round-lane'}" style="grid-column: ${column}; grid-row: 1"><h3>${escapeHtml(lane.title)}</h3><p>${escapeHtml(lane.subtitle)}</p></header>`;
   }
 
-  function renderEdgeConnector(edge) {
-    const row = edge.fromNode.row;
-    const direction = edge.fromNode.column < edge.toNode.column ? 'left-to-right' : 'right-to-left';
-    return `<div class="edge-connector ${direction}" style="grid-column: 2; grid-row: ${row + 1}" data-edge-id="${escapeHtml(edge.id)}"><span>${escapeHtml(edge.label)}</span></div>`;
-  }
-
   function renderFlowNode(node) {
     const hasDetails = node.details !== undefined && node.details !== null;
     const column = node.column === 1 ? 1 : 3;
@@ -871,6 +866,98 @@ import {
         ${hasDetails ? `<details><summary>More info</summary><pre>${escapeHtml(JSON.stringify(node.details, null, 2))}</pre></details>` : ''}
       </article>
     `;
+  }
+
+  function drawFlowchartEdges(spec) {
+    if (!el.flowchartRoot || !spec || !Array.isArray(spec.edges)) return;
+    const grid = el.flowchartRoot.querySelector('.flowchart-grid');
+    const svg = grid && grid.querySelector('.edge-layer');
+    if (!grid || !svg) return;
+    const gridRect = grid.getBoundingClientRect();
+    const width = Math.max(1, gridRect.width);
+    const height = Math.max(1, gridRect.height);
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    svg.setAttribute('width', String(width));
+    svg.setAttribute('height', String(height));
+    svg.innerHTML = `
+      <defs>
+        <marker id="flow-arrowhead" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L10,4 L0,8 Z"></path>
+        </marker>
+      </defs>
+    `;
+    for (const edge of spec.edges) {
+      const fromEl = grid.querySelector(`[data-node-id="${cssEscape(edge.from)}"]`);
+      const toEl = grid.querySelector(`[data-node-id="${cssEscape(edge.to)}"]`);
+      if (!fromEl || !toEl) continue;
+      const fromRect = relativeRect(fromEl.getBoundingClientRect(), gridRect);
+      const toRect = relativeRect(toEl.getBoundingClientRect(), gridRect);
+      const pathData = flowPath(fromRect, toRect, edge.fromNode, edge.toNode);
+      const pathEl = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      pathEl.setAttribute('class', 'edge-path');
+      pathEl.setAttribute('d', pathData.d);
+      pathEl.setAttribute('marker-end', 'url(#flow-arrowhead)');
+      svg.appendChild(pathEl);
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      label.setAttribute('class', 'edge-label');
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.textContent = edge.label || '';
+      text.setAttribute('x', String(pathData.labelX));
+      text.setAttribute('y', String(pathData.labelY));
+      label.appendChild(text);
+      svg.appendChild(label);
+      const bbox = text.getBBox();
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('x', String(bbox.x - 8));
+      rect.setAttribute('y', String(bbox.y - 5));
+      rect.setAttribute('width', String(bbox.width + 16));
+      rect.setAttribute('height', String(bbox.height + 10));
+      rect.setAttribute('rx', '10');
+      label.insertBefore(rect, text);
+    }
+  }
+
+  function relativeRect(rect, rootRect) {
+    return {
+      left: rect.left - rootRect.left,
+      right: rect.right - rootRect.left,
+      top: rect.top - rootRect.top,
+      bottom: rect.bottom - rootRect.top,
+      width: rect.width,
+      height: rect.height,
+      centerX: rect.left - rootRect.left + rect.width / 2,
+      centerY: rect.top - rootRect.top + rect.height / 2,
+    };
+  }
+
+  function flowPath(fromRect, toRect, fromNode, toNode) {
+    if (fromNode.column === toNode.column) {
+      const downward = fromRect.centerY <= toRect.centerY;
+      const start = { x: fromRect.centerX, y: downward ? fromRect.bottom : fromRect.top };
+      const end = { x: toRect.centerX, y: downward ? toRect.top : toRect.bottom };
+      const midY = start.y + (end.y - start.y) / 2;
+      return {
+        d: `M ${start.x} ${start.y} C ${start.x} ${midY}, ${end.x} ${midY}, ${end.x} ${end.y}`,
+        labelX: start.x + (end.x - start.x) / 2,
+        labelY: midY - 8,
+      };
+    }
+    const leftToRight = fromNode.column < toNode.column;
+    const start = { x: leftToRight ? fromRect.right : fromRect.left, y: fromRect.centerY };
+    const end = { x: leftToRight ? toRect.left : toRect.right, y: toRect.centerY };
+    const dx = Math.max(80, Math.abs(end.x - start.x) * 0.45);
+    const c1x = start.x + (leftToRight ? dx : -dx);
+    const c2x = end.x + (leftToRight ? -dx : dx);
+    return {
+      d: `M ${start.x} ${start.y} C ${c1x} ${start.y}, ${c2x} ${end.y}, ${end.x} ${end.y}`,
+      labelX: start.x + (end.x - start.x) / 2,
+      labelY: start.y + (end.y - start.y) / 2 - 8,
+    };
+  }
+
+  function cssEscape(value) {
+    if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(String(value));
+    return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
   }
 
   function boundText(binding, fallback = '') {

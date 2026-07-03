@@ -136,6 +136,7 @@
   ],
   "edges": [
     { "id": "ready-to-commit", "from": "round-ready", "to": "commitment", "label": "commit" },
+    { "id": "commitment-to-chips", "from": "commitment", "to": "chips", "label": "enables chips" },
     { "id": "chips-to-spin", "from": "chips", "to": "spin", "label": "lock" },
     { "id": "spin-to-ledger", "from": "spin", "to": "ledger", "label": "hash" },
     { "id": "ledger-to-entropy", "from": "ledger", "to": "tn10-entropy", "label": "target" },

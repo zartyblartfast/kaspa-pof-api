@@ -39,8 +39,13 @@ const ROUND_RETENTION_TTL_MS = nonNegativeNumber(process.env.ROULETTE_ROUND_RETE
 const SPIN_RETENTION_TTL_MS = nonNegativeNumber(process.env.ROULETTE_SPIN_RETENTION_TTL_MS, 60 * 60 * 1000);
 const MAX_RETAINED_ROUNDS = positiveInteger(process.env.ROULETTE_MAX_RETAINED_ROUNDS, 1000);
 const MAX_RETAINED_SPINS = positiveInteger(process.env.ROULETTE_MAX_RETAINED_SPINS, 1000);
+const ROUND_RATE_LIMIT_WINDOW_MS = positiveInteger(process.env.ROULETTE_ROUND_RATE_LIMIT_WINDOW_MS, 60 * 1000);
+const ROUND_RATE_LIMIT_MAX = positiveInteger(process.env.ROULETTE_ROUND_RATE_LIMIT_MAX, 30);
+const SPIN_RATE_LIMIT_WINDOW_MS = positiveInteger(process.env.ROULETTE_SPIN_RATE_LIMIT_WINDOW_MS, 60 * 1000);
+const SPIN_RATE_LIMIT_MAX = positiveInteger(process.env.ROULETTE_SPIN_RATE_LIMIT_MAX, 10);
 const rounds = new Map();
 const spins = new Map();
+const rateLimitBuckets = new Map();
 const endpointPenaltyUntil = new Map();
 
 const rouletteOutcomeDerivers = {
@@ -63,10 +68,14 @@ function createRoulettePocServer() {
         return sendJson(res, 200, health);
       }
       if (req.method === 'POST' && url.pathname === '/examples/roulette-poc/rounds') {
+        const rateLimit = checkRateLimit(req, 'round:create', ROUND_RATE_LIMIT_MAX, ROUND_RATE_LIMIT_WINDOW_MS);
+        if (!rateLimit.allowed) return sendRateLimited(res, rateLimit);
         return sendJson(res, 201, await createRound());
       }
       const spinCreateMatch = url.pathname.match(/^\/examples\/roulette-poc\/rounds\/([^/]+)\/spins$/);
       if (req.method === 'POST' && spinCreateMatch) {
+        const rateLimit = checkRateLimit(req, 'spin:create', SPIN_RATE_LIMIT_MAX, SPIN_RATE_LIMIT_WINDOW_MS);
+        if (!rateLimit.allowed) return sendRateLimited(res, rateLimit);
         const input = await readJson(req);
         return sendJson(res, 202, startSpinSession(decodeURIComponent(spinCreateMatch[1]), input));
       }
@@ -738,13 +747,72 @@ function resolveInstalledPackageAsset(pathname) {
   return filePath;
 }
 
-function sendJson(res, statusCode, body) {
+function sendJson(res, statusCode, body, extraHeaders = {}) {
   if (statusCode === 204) {
-    res.writeHead(204, commonHeaders('application/json; charset=utf-8'));
+    res.writeHead(204, { ...commonHeaders('application/json; charset=utf-8'), ...extraHeaders });
     return res.end();
   }
-  res.writeHead(statusCode, commonHeaders('application/json; charset=utf-8'));
+  res.writeHead(statusCode, { ...commonHeaders('application/json; charset=utf-8'), ...extraHeaders });
   res.end(`${JSON.stringify(body, null, 2)}\n`);
+}
+
+function sendRateLimited(res, rateLimit) {
+  return sendJson(res, 429, {
+    error: `rate limit exceeded for ${rateLimit.bucket}`,
+    code: 'RATE_LIMITED',
+    retryAfterSeconds: rateLimit.retryAfterSeconds,
+  }, {
+    'retry-after': String(rateLimit.retryAfterSeconds),
+    'x-ratelimit-limit': String(rateLimit.limit),
+    'x-ratelimit-remaining': '0',
+    'x-ratelimit-reset': String(rateLimit.resetEpochSeconds),
+  });
+}
+
+function checkRateLimit(req, bucket, limit, windowMs, nowMs = Date.now()) {
+  pruneRateLimitBuckets(nowMs);
+  const key = `${bucket}:${clientAddress(req)}`;
+  const current = rateLimitBuckets.get(key);
+  const resetCurrent = !current || nowMs - current.windowStartMs >= windowMs;
+  const entry = resetCurrent ? { windowStartMs: nowMs, count: 0, windowMs } : current;
+  if (entry.count >= limit) {
+    const resetAtMs = entry.windowStartMs + windowMs;
+    return {
+      allowed: false,
+      bucket,
+      limit,
+      retryAfterSeconds: Math.max(1, Math.ceil((resetAtMs - nowMs) / 1000)),
+      resetEpochSeconds: Math.ceil(resetAtMs / 1000),
+    };
+  }
+  entry.count += 1;
+  rateLimitBuckets.set(key, entry);
+  return {
+    allowed: true,
+    bucket,
+    limit,
+    remaining: Math.max(0, limit - entry.count),
+    resetEpochSeconds: Math.ceil((entry.windowStartMs + windowMs) / 1000),
+  };
+}
+
+function pruneRateLimitBuckets(nowMs) {
+  for (const [key, entry] of rateLimitBuckets) {
+    if (nowMs - entry.windowStartMs >= entry.windowMs) rateLimitBuckets.delete(key);
+  }
+}
+
+function clientAddress(req) {
+  const forwardedFor = firstHeaderValue(req.headers['x-forwarded-for']);
+  if (forwardedFor) return forwardedFor.split(',')[0].trim() || forwardedFor;
+  const realIp = firstHeaderValue(req.headers['x-real-ip']);
+  if (realIp) return realIp;
+  return (req.socket && req.socket.remoteAddress) || 'unknown';
+}
+
+function firstHeaderValue(value) {
+  if (Array.isArray(value)) return value[0] ? String(value[0]).trim() : '';
+  return value ? String(value).trim() : '';
 }
 
 function sendHead(res, statusCode, contentType) {

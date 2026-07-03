@@ -62,7 +62,8 @@ for file in \
   examples/roulette-poc/styles.css \
   examples/roulette-poc/flowchart-spec.json \
   examples/roulette-poc/roulette-table-layout.js \
-  examples/roulette-poc/roulette-table-renderer.js; do
+  examples/roulette-poc/roulette-table-renderer.js \
+  ops/logrotate.d/kaspa-pof-roulette-spins; do
   [ -f "$file" ] || fail KASPA_POF_REQUIRED_FILE "$file missing"
 done
 pass KASPA_POF_REQUIRED_FILES
@@ -308,7 +309,19 @@ for (const required of ['ROULETTE_MAX_RETAINED_ROUNDS', 'ROULETTE_MAX_RETAINED_S
 }
 if (server.includes('logPath: spin.logPath')) throw new Error('roulette server must not expose filesystem logPath in public responses or SSE payloads');
 if (app.includes('createdSpin.logPath') || app.includes('spinLogPath') || app.includes('data.logPath')) throw new Error('roulette browser must not consume public filesystem logPath values');
+for (const required of ['ROULETTE_ROUND_RATE_LIMIT_MAX', 'ROULETTE_SPIN_RATE_LIMIT_MAX', 'RATE_LIMITED', 'retry-after']) {
+  if (!server.includes(required)) throw new Error(`roulette POST rate limiting missing ${required}`);
+}
 NODE
+logrotate_config="ops/logrotate.d/kaspa-pof-roulette-spins"
+grep -q '^/var/log/kaspa-pof-roulette/spins/\*.jsonl {' "$logrotate_config" || fail KASPA_POF_ROULETTE_LOGROTATE 'spin JSONL path missing'
+for required in daily 'rotate 14' compress delaycompress missingok notifempty copytruncate; do
+  grep -q "$required" "$logrotate_config" || fail KASPA_POF_ROULETTE_LOGROTATE "$required missing"
+done
+if command -v logrotate >/dev/null 2>&1; then
+  logrotate --debug "$logrotate_config" >/dev/null 2>&1 || fail KASPA_POF_ROULETTE_LOGROTATE 'logrotate debug parse failed'
+fi
+pass KASPA_POF_ROULETTE_LOGROTATE
 ! grep -q 'kaspa-toccata-api' examples/roulette-poc/index.html || fail KASPA_POF_NO_OLD_IMPORT_MAP
 ! grep -q "from 'kaspa-toccata-api'" examples/roulette-poc/app.js || fail KASPA_POF_NO_OLD_APP_IMPORT
 ! grep -R --exclude-dir=node_modules "createToccataApiClient\|apiClient\.\|verifyProof(\|getProof(\|/v1/\|Kaspa Toccata API\|returned by the API" examples/roulette-poc >/dev/null || fail KASPA_POF_ROULETTE_NO_HTTP_PROOF_AUTHORITY
