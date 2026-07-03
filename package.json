@@ -23,7 +23,8 @@
   ],
   "scripts": {
     "test": "node --test",
-    "smoke": "scripts/smoke.sh"
+    "smoke": "scripts/smoke.sh",
+    "smoke:published": "scripts/published-package-smoke.sh"
   },
   "engines": {
     "node": ">=20"
@@ -36,6 +37,11 @@
       "import": "./src/index.mjs",
       "require": "./src/index.cjs",
       "default": "./src/index.mjs"
+    },
+    "./browser": {
+      "types": "./src/browser.d.ts",
+      "import": "./src/browser.mjs",
+      "default": "./src/browser.mjs"
     }
   },
   "files": [

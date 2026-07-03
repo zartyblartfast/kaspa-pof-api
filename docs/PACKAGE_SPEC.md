@@ -26,10 +26,11 @@ Given a pre-committed hidden server input, fixed user/app inputs, and future Kas
 `examples/roulette-poc/` is an example consumer, not package core. It now demonstrates the intended production trust boundary:
 
 - `examples/roulette-poc/server.cjs` is roulette-specific infrastructure for round creation, hidden server seed custody, chip-ledger locking, live TN10 future-block evidence fetching, bounded WRPC endpoint racing/fallback, SSE diagnostics, JSONL runtime logs, and portable proof-bundle assembly.
-- `examples/roulette-poc/app.js` imports `kaspa-pof-api` in the browser and verifies the returned `tn10_future_entropy` proof bundle through `verifyFairnessProof()` with a roulette-specific outcome deriver.
+- `examples/roulette-poc/app.js` imports `kaspa-pof-api/browser` from the example's installed `kaspa-pof-api@0.1.0-alpha.1` dependency and verifies the returned `tn10_future_entropy` proof bundle through `verifyFairnessProof()` with a roulette-specific outcome deriver.
 - The server does not expose a trusted proof-verdict endpoint. Any service path is evidence plumbing; the package runtime remains the verifier.
+- Demo-unit round accounting is implemented only in the browser example after successful package verification. It shows round stake/returned/net and browser-memory-only session P/L, does not imply KAS/TN10 wagers or payouts, and is not persisted to the server, chain, local storage, or proof bundle.
 
-Current gap: the PoC currently maps `kaspa-pof-api` to local repo source at `/src/browser.mjs`. That is acceptable for development, but it is not yet proof that a published npm package artifact is being consumed.
+The PoC now serves the installed npm artifact from `examples/roulette-poc/node_modules/kaspa-pof-api/src/browser.mjs`. It must not map package imports back to repo-root `/src/browser.mjs`.
 
 
 ## Terminology

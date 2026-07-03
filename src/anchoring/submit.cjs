@@ -4,7 +4,7 @@ const { createHash } = require('node:crypto');
 const { canonicalJson } = require('../ledger.cjs');
 const { parseSompi, validateTn10BroadcastPolicy } = require('./policy.cjs');
 
-const DEFAULT_KASPA_WASM_PKG = '/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kaspa';
+const DEFAULT_KASPA_WASM_PKG = '/tmp/kaspa-pof-api-spikes/rusty-kaspa/wasm/nodejs/kaspa';
 
 async function submitTn10AnchorTransaction({
   kaspa,

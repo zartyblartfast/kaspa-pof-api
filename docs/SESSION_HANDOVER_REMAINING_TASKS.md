@@ -15,12 +15,12 @@ Current package version:
 0.1.0-alpha.1
 ```
 
-Latest committed/pushed baseline before the current uncommitted diagnostics refinements:
+Latest committed baseline:
 
 ```text
+fee0ec4 docs: clarify npm package consumer boundary
+dee2579 feat: add roulette diagnostics endpoint racing
 8cfe36b feat: verify roulette runtime consumer
-c37d211 Prepare alpha.1 publish readiness docs
-b15c773 Add runtime proof-root anchored verification
 ```
 
 ## Implemented root API direction
@@ -54,7 +54,7 @@ The package core must remain generalized and must not depend on roulette.
 
 ## Roulette PoC work completed in this milestone
 
-The in-repo `examples/roulette-poc/` has been adapted structurally into a TN10-backed package-runtime consumer.
+The in-repo `examples/roulette-poc/` has been adapted into a TN10-backed published-npm-package consumer.
 
 Implemented trust boundary:
 
@@ -63,7 +63,7 @@ roulette-specific Node server creates/coordinates round and supplies evidence
         ↓
 server returns portable tn10_future_entropy proof bundle
         ↓
-browser imports kaspa-pof-api through /src/browser.mjs during local development
+browser imports kaspa-pof-api/browser from examples/roulette-poc/node_modules/kaspa-pof-api@0.1.0-alpha.1
         ↓
 browser calls verifyFairnessProof() with roulette outcome deriver
         ↓
@@ -73,12 +73,15 @@ UI displays browser/package verifier result
 Important files added or changed:
 
 ```text
+examples/roulette-poc/package.json
+examples/roulette-poc/package-lock.json
 examples/roulette-poc/server.cjs
 examples/roulette-poc/app.js
 examples/roulette-poc/index.html
 examples/roulette-poc/flowchart-spec.json
 examples/roulette-poc/README.md
 examples/roulette-poc/roulette-table-layout.js
+docs/ROULETTE_NPM_CONSUMER_WIRING.md
 src/browser.mjs
 src/anchoring/submit.mjs
 test/package-root-runtime.test.mjs
@@ -96,8 +99,8 @@ Roulette PoC details:
 
 - `examples/roulette-poc/server.cjs` is roulette-specific infrastructure, not package core.
 - It creates committed rounds, holds hidden server seed material, accepts locked chip ledgers, chooses a TN10 future entropy target, fetches real TN10 block evidence through rusty-kaspa WASM, races bounded TN10 WRPC endpoints with resolver fallback, streams SSE diagnostics, writes per-spin JSONL logs, assembles a portable `tn10_future_entropy` proof bundle, and sanity-checks it with `verifyFairnessProof()`.
-- `examples/roulette-poc/app.js` imports `kaspa-pof-api`, receives the proof bundle, supplies `roulette-poc:number-v1` as the app-specific outcome deriver, and verifies the proof in the browser.
-- Current gap: `examples/roulette-poc/index.html` maps `kaspa-pof-api` to `/src/browser.mjs`. That is local repo source, not an installed npm package artifact. Do not claim the PoC showcases the published npm API until this is converted.
+- `examples/roulette-poc/app.js` imports `kaspa-pof-api/browser` from the example's installed `node_modules/kaspa-pof-api@0.1.0-alpha.1`, receives the proof bundle, supplies `roulette-poc:number-v1` as the app-specific outcome deriver, and verifies the proof in the browser.
+- Published-package wiring is documented in `docs/ROULETTE_NPM_CONSUMER_WIRING.md`. Tests and smoke now fail if the PoC maps back to repo-root `/src/browser.mjs`, serves repo-root package source, uses a trusted proof-verdict endpoint, or uses static/fake proof data.
 - The previous `local_bundle_only` browser-local entropy path was removed from the roulette PoC.
 - No trusted proof-verdict endpoint should be reintroduced.
 - Service/fetch paths are evidence plumbing only.
@@ -114,13 +117,13 @@ node examples/roulette-poc/server.cjs
 Default live WASM path used by the server:
 
 ```text
-/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kaspa
+/tmp/kaspa-pof-api-spikes/rusty-kaspa/wasm/nodejs/kaspa
 ```
 
 If needed:
 
 ```bash
-KASPA_WASM_PKG=/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kaspa \
+KASPA_WASM_PKG=/tmp/kaspa-pof-api-spikes/rusty-kaspa/wasm/nodejs/kaspa \
 node examples/roulette-poc/server.cjs
 ```
 
@@ -191,15 +194,15 @@ Re-run `npm pack --dry-run` before any publish/package-content decision.
 
 ## Current package publication status
 
-`kaspa-pof-api@0.1.0-alpha.1` is not yet published to npm. It has been committed, pushed, tested, smoke-tested, and dry-run packed. The older published npm package is `kaspa-toccata-api@0.1.1`, which belongs to the previous HTTP-client-centered repo.
+`kaspa-pof-api@0.1.0-alpha.1` is published to npm. The older published npm package `kaspa-toccata-api@0.1.1` belongs to the previous HTTP-client-centered repo.
 
-Agreed next actions before claiming the roulette PoC showcases the npm API:
+Completed before claiming the roulette PoC showcases the npm API:
 
-1. Re-run package verification and publish `kaspa-pof-api@0.1.0-alpha.1` only after explicit approval of npm account, version, and package contents.
-2. Add/verify a browser-safe package export such as `kaspa-pof-api/browser`.
-3. Give `examples/roulette-poc/` its own dependency on the published package version.
-4. Serve or bundle the installed package browser export for the PoC; do not map the import to `/src/browser.mjs`.
-5. Add regression checks that fail if the PoC uses local repo source, a trusted proof-verdict endpoint, or static/fake proof data.
+1. Published `kaspa-pof-api@0.1.0-alpha.1`.
+2. Added/verified browser-safe package export `kaspa-pof-api/browser`.
+3. Added `examples/roulette-poc/package.json` and `package-lock.json` pinning `kaspa-pof-api@0.1.0-alpha.1`.
+4. Served the installed package browser export from `examples/roulette-poc/node_modules/kaspa-pof-api/src/browser.mjs`; the PoC no longer maps to `/src/browser.mjs`.
+5. Added regression checks that fail if the PoC uses local repo source, a trusted proof-verdict endpoint, or static/fake proof data.
 
 ## Spend / fee / transaction boundary
 
@@ -209,7 +212,7 @@ Do not move proof verification back into a Node/server. A server may submit anch
 
 ## Current git status expectation
 
-Latest pushed commit is expected to be `dee2579 feat: add roulette diagnostics endpoint racing`; working tree should be clean unless current doc updates are in progress.
+Latest local commit is expected to be `fee0ec4 docs: clarify npm package consumer boundary`; working tree should be clean unless current handover updates are in progress. If publishing from a new session, check whether `fee0ec4` has been pushed before relying on the remote branch.
 
 Start `/new` with:
 
@@ -232,6 +235,62 @@ git diff --stat
 - Do not publish to npm without explicit agreement on contents/version/auth state first.
 - Do not commit unless the user asks.
 
+## Latest completed task: roulette demo-unit win/loss display
+
+User agreed the roulette PoC should use demo accounting units only. This is now implemented in the browser example only; chip amounts are not KAS/TN10 coins, and the funded TN10 wallet is only for proof/evidence/fee operations where explicitly gated. The UI does not imply player bankroll, custody, deposits, withdrawals, or real-money settlement.
+
+Implemented behavior:
+
+- A compact `Demo unit accounting` card appears in the main roulette table section, right side, below `Selected chips`.
+- Round display shows total round stake in demo units before spin and while pending.
+- After browser package verification succeeds, it shows round returned units and net win/loss.
+- If browser proof verification fails, it does not settle or display trusted final P/L; it shows that the round was not settled because proof verification failed.
+- Payout calculation uses the table layout's European single-zero semantics: each selection wins if the verified result number is in `coveredNumbers`; `payoutMultiplier` is net odds, so a winning stake returns `stake * (payoutMultiplier + 1)`, winning net is `stake * payoutMultiplier`, losing return is `0`, and losing net is `-stake`.
+- The card includes: `Demo units only. TN10/mainnet fees are proof/evidence costs, not player wager or payout currency.`
+- Browser-memory-only session P/L starts at zero on page open/refresh, updates only after successful browser verification, and uses settled round IDs so rerenders/SSE reconnects cannot double-count.
+- `Reset Round` clears round-specific display/state and keeps the browser-memory session total.
+- Session P/L is not persisted to the server, localStorage, cookies, package proof bundles, or chain.
+
+Files in this increment:
+
+```text
+examples/roulette-poc/app.js
+examples/roulette-poc/index.html
+examples/roulette-poc/styles.css
+test/roulette-runtime-consumer.test.mjs
+scripts/smoke.sh
+README.md
+docs/PACKAGE_SPEC.md
+docs/NEXT_PHASE_PLAN.md
+docs/HANDOVER_PROMPT.md
+docs/SESSION_HANDOVER_REMAINING_TASKS.md
+examples/roulette-poc/README.md
+```
+
+Latest verification for this increment:
+
+```text
+node --test test/roulette-runtime-consumer.test.mjs: PASS
+npm run test: PASS, 79 tests, 22 suites, 0 failures
+npm run smoke: PASS, including KASPA_POF_ROULETTE_DEMO_ACCOUNTING=PASS and KASPA_POF_SMOKE=PASS
+```
+
+Real browser verification:
+
+```text
+URL: http://127.0.0.1:8123/examples/roulette-poc/
+Bet: RED, 5 demo units
+Status: Browser package verified TN10 proof
+Stage: verified
+Result: 34 red
+Round stake: 5 demo units
+Returned: 10 demo units
+Round net: +5 demo units
+Session P/L: +5 demo units
+Reset Round: cleared round display/state and preserved Session P/L +5 demo units
+Browser console: 0 messages, 0 JS errors
+```
+
 ## Best next step after /new
 
 1. Read this file and startup docs:
@@ -245,20 +304,18 @@ docs/NEXT_PHASE_PLAN.md
 README.md
 ```
 
-2. Re-run baseline checks:
+2. Check state:
 
 ```bash
+cd /root/kaspa-pof-api
+git status --short
 npm run test
 npm run smoke
 npm pack --dry-run
 ```
 
-3. If publishing is approved, publish `kaspa-pof-api@0.1.0-alpha.1` after final package-content/account confirmation.
+3. Decide the next coherent increment. Likely options:
 
-4. Convert the roulette PoC to consume the installed npm package artifact and then run a real browser create/place-chip/spin flow. Expected final UI state after a successful live spin:
-
-```text
-Claim level: tn10_future_entropy
-Status: Browser package verified TN10 proof
-Stage: verified
-```
+- review package tarball/version and decide whether a follow-up npm package version should be published for the browser export/example/docs milestone;
+- improve roulette demo diagnostics/UX only if a specific issue is observed;
+- continue package API hardening without moving roulette settlement or proof authority into the server.

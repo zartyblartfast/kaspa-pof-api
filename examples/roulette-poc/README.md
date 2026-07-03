@@ -7,13 +7,15 @@ Trust boundary:
 - The roulette PoC server owns roulette round orchestration, hidden server-seed custody, chip-ledger locking, and TN10 evidence fetching.
 - The server starts each spin as a diagnostic SSE session, locks the chip ledger, fetches TN10 evidence, and streams live progress events while the browser waits.
 - The final SSE event returns a portable `tn10_future_entropy` proof bundle containing commitment, ledger, TN10 block evidence, reveal data, and roulette outcome evidence.
-- The browser imports `kaspa-pof-api` through the import map and calls `verifyFairnessProof()` itself after the proof bundle arrives.
+- The browser imports `kaspa-pof-api/browser` from this example's installed `node_modules/kaspa-pof-api@0.1.0-alpha.1` dependency and calls `verifyFairnessProof()` itself after the proof bundle arrives.
 - The browser displays the package verifier result. There is no trusted legacy proof-verdict endpoint.
+- The browser also displays demo-unit-only round accounting after package verification: round stake, returned units, round net, and a browser-memory-only session P/L guarded by settled round IDs. This accounting is not persisted, not sent to the server, and not included in proof bundles.
 - The server writes per-spin JSONL diagnostics to `examples/roulette-poc/.runtime/spins/<spinId>.jsonl`; these logs intentionally summarize proof/timing data and do not log the hidden server seed.
 
 Run from the repository root:
 
 ```bash
+npm install --prefix examples/roulette-poc
 node examples/roulette-poc/server.cjs
 ```
 
@@ -26,7 +28,7 @@ http://127.0.0.1:8123/examples/roulette-poc/
 Required live dependency:
 
 - `KASPA_WASM_PKG` must point at a local rusty-kaspa WASM Node.js package exposing `RpcClient`, `Resolver`, and `Encoding`.
-- The default path is `/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kaspa`.
+- The default path is `/tmp/kaspa-pof-api-spikes/rusty-kaspa/wasm/nodejs/kaspa`.
 
 Optional live RPC tuning:
 

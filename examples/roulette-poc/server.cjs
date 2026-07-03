@@ -14,12 +14,12 @@ const {
   hashCommitment,
   hashLedger,
   verifyFairnessProof,
-} = require('../../src/index.cjs');
+} = require('kaspa-pof-api');
 
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number(process.env.PORT || 8123);
 const NETWORK_ID = process.env.KASPA_NETWORK_ID || 'testnet-10';
-const KASPA_WASM_PKG = process.env.KASPA_WASM_PKG || '/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kaspa';
+const KASPA_WASM_PKG = process.env.KASPA_WASM_PKG || '/tmp/kaspa-pof-api-spikes/rusty-kaspa/wasm/nodejs/kaspa';
 const WRPC_TIMEOUT_MS = Number(process.env.KASPA_WRPC_TIMEOUT_MS || 45000);
 const WRPC_CONNECT_RACE_MS = Number(process.env.ROULETTE_KASPA_WRPC_CONNECT_RACE_MS || 3000);
 const WRPC_ENDPOINT_PENALTY_MS = Number(process.env.ROULETTE_KASPA_WRPC_ENDPOINT_PENALTY_MS || 120000);
@@ -33,7 +33,6 @@ const WRPC_ENDPOINTS = parseEndpointList(process.env.ROULETTE_KASPA_WRPC_ENDPOIN
 const TN10_TARGET_OFFSET_DAA_SCORE = BigInt(process.env.ROULETTE_TN10_TARGET_OFFSET_DAA_SCORE || '2');
 const TN10_MAX_ATTEMPTS = Number(process.env.ROULETTE_TN10_MAX_ATTEMPTS || 90);
 const TN10_POLL_MS = Number(process.env.ROULETTE_TN10_POLL_MS || 500);
-const ROOT = path.resolve(__dirname, '../..');
 const APP_ROOT = path.resolve(__dirname);
 const RUNTIME_LOG_ROOT = process.env.ROULETTE_RUNTIME_LOG_ROOT || path.join(APP_ROOT, '.runtime', 'spins');
 const rounds = new Map();
@@ -702,18 +701,8 @@ function sendStatic(res, pathname) {
     ['/examples/roulette-poc/flowchart-spec.json', path.join(APP_ROOT, 'flowchart-spec.json')],
     ['/examples/roulette-poc/roulette-table-layout.js', path.join(APP_ROOT, 'roulette-table-layout.js')],
     ['/examples/roulette-poc/roulette-table-renderer.js', path.join(APP_ROOT, 'roulette-table-renderer.js')],
-    ['/src/browser.mjs', path.join(ROOT, 'src/browser.mjs')],
-    ['/src/commitment.mjs', path.join(ROOT, 'src/commitment.mjs')],
-    ['/src/ledger.mjs', path.join(ROOT, 'src/ledger.mjs')],
-    ['/src/entropy.mjs', path.join(ROOT, 'src/entropy.mjs')],
-    ['/src/outcome.mjs', path.join(ROOT, 'src/outcome.mjs')],
-    ['/src/proof/verify.mjs', path.join(ROOT, 'src/proof/verify.mjs')],
-    ['/src/proof/root.mjs', path.join(ROOT, 'src/proof/root.mjs')],
-    ['/src/networks/claim-levels.mjs', path.join(ROOT, 'src/networks/claim-levels.mjs')],
-    ['/src/networks/kaspa-evidence.mjs', path.join(ROOT, 'src/networks/kaspa-evidence.mjs')],
-    ['/src/anchoring/evidence.mjs', path.join(ROOT, 'src/anchoring/evidence.mjs')],
   ]);
-  const filePath = routes.get(pathname);
+  const filePath = routes.get(pathname) || resolveInstalledPackageAsset(pathname);
   if (!filePath) return sendJson(res, 404, { error: 'not found' });
   const extension = path.extname(filePath);
   const type = extension === '.html' ? 'text/html; charset=utf-8'
@@ -722,6 +711,18 @@ function sendStatic(res, pathname) {
         : 'text/javascript; charset=utf-8';
   res.writeHead(200, commonHeaders(type));
   res.end(fs.readFileSync(filePath));
+}
+
+function resolveInstalledPackageAsset(pathname) {
+  const prefix = '/examples/roulette-poc/node_modules/kaspa-pof-api/';
+  if (!pathname.startsWith(prefix)) return null;
+  const relative = pathname.slice(prefix.length);
+  if (!relative || relative.includes('\0')) return null;
+  const packageRoot = path.join(APP_ROOT, 'node_modules', 'kaspa-pof-api');
+  const filePath = path.resolve(packageRoot, relative);
+  if (!filePath.startsWith(`${packageRoot}${path.sep}`)) return null;
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) return null;
+  return filePath;
 }
 
 function sendJson(res, statusCode, body) {

@@ -53,6 +53,8 @@ for file in \
   src/index.mjs \
   src/index.cjs \
   src/index.d.ts \
+  examples/roulette-poc/package.json \
+  examples/roulette-poc/package-lock.json \
   examples/roulette-poc/README.md \
   examples/roulette-poc/index.html \
   examples/roulette-poc/app.js \
@@ -281,25 +283,47 @@ const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 if (pkg.name !== 'kaspa-pof-api') throw new Error(`unexpected package name ${pkg.name}`);
 if (!pkg.exports || !pkg.exports['.']) throw new Error('package root export missing');
+if (!pkg.exports['./browser']) throw new Error('browser runtime export missing');
+if (pkg.exports['./browser'].require) throw new Error('browser runtime export must not expose a CommonJS/Node submitter path');
 if (pkg.exports['./http-client']) throw new Error('legacy HTTP client export must not be published');
 NODE
 pass KASPA_POF_PACKAGE_METADATA
 
-grep -Eq '"kaspa-pof-api": "/src/(index|browser)\.mjs(\?browser-runtime=1)?"' examples/roulette-poc/index.html || fail KASPA_POF_IMPORT_MAP
+node - <<'NODE'
+const fs = require('fs');
+const app = fs.readFileSync('examples/roulette-poc/app.js', 'utf8');
+const index = fs.readFileSync('examples/roulette-poc/index.html', 'utf8');
+const server = fs.readFileSync('examples/roulette-poc/server.cjs', 'utf8');
+const pkg = JSON.parse(fs.readFileSync('examples/roulette-poc/package.json', 'utf8'));
+if (pkg.dependencies['kaspa-pof-api'] !== '0.1.0-alpha.1') throw new Error('roulette PoC must pin the published kaspa-pof-api version');
+if (!app.includes("from 'kaspa-pof-api/browser'")) throw new Error('roulette browser must import kaspa-pof-api/browser');
+if (!index.includes('"kaspa-pof-api/browser"')) throw new Error('roulette import map must expose kaspa-pof-api/browser');
+if (!index.includes('/examples/roulette-poc/node_modules/kaspa-pof-api/src/browser.mjs')) throw new Error('roulette import map must serve installed package browser export');
+if (index.includes('"/src/browser.mjs"') || /"kaspa-pof-api"\s*:\s*"\/src\//.test(index)) throw new Error('roulette import map must not use repo-local /src source');
+if (!server.includes("require('kaspa-pof-api')")) throw new Error('roulette server package sanity check must use installed package');
+if (server.includes("require('../../src/index.cjs')") || server.includes("path.join(ROOT, 'src/")) throw new Error('roulette server must not serve repo-local package source');
+NODE
 ! grep -q 'kaspa-toccata-api' examples/roulette-poc/index.html || fail KASPA_POF_NO_OLD_IMPORT_MAP
 ! grep -q "from 'kaspa-toccata-api'" examples/roulette-poc/app.js || fail KASPA_POF_NO_OLD_APP_IMPORT
-grep -q "from 'kaspa-pof-api'" examples/roulette-poc/app.js || fail KASPA_POF_APP_IMPORT
-! grep -R "createToccataApiClient\|apiClient\.\|verifyProof(\|getProof(\|/v1/\|Kaspa Toccata API\|returned by the API" examples/roulette-poc >/dev/null || fail KASPA_POF_ROULETTE_NO_HTTP_PROOF_AUTHORITY
+! grep -R --exclude-dir=node_modules "createToccataApiClient\|apiClient\.\|verifyProof(\|getProof(\|/v1/\|Kaspa Toccata API\|returned by the API" examples/roulette-poc >/dev/null || fail KASPA_POF_ROULETTE_NO_HTTP_PROOF_AUTHORITY
 grep -q "verifyFairnessProof" examples/roulette-poc/app.js || fail KASPA_POF_ROULETTE_LOCAL_VERIFY
 grep -q "tn10_future_entropy" examples/roulette-poc/app.js || fail KASPA_POF_ROULETTE_TN10_CLAIM_LEVEL
 grep -q "tn10_future_entropy" examples/roulette-poc/server.cjs || fail KASPA_POF_ROULETTE_SERVER_TN10_CLAIM_LEVEL
-! grep -R "local_bundle_only\|browser-local-bundle-entropy\|deriveLocalEntropy" examples/roulette-poc >/dev/null || fail KASPA_POF_ROULETTE_NO_LOCAL_ONLY_PROOF
+for required in "demoAccountingCard" "Demo units only" "Round stake" "Session P/L" "calculateRoulettePayout" "settledRoundIds" "payoutMultiplier" "coveredNumbers"; do
+  grep -q "$required" examples/roulette-poc/app.js examples/roulette-poc/index.html || fail KASPA_POF_ROULETTE_DEMO_ACCOUNTING "$required missing"
+done
+! grep -q "localStorage\|sessionStorage\|document.cookie" examples/roulette-poc/app.js || fail KASPA_POF_ROULETTE_ACCOUNTING_NOT_PERSISTED
+! grep -q "sessionProfitLoss\|roundAccounting\|demoAccountingCard\|payoutMultiplier" examples/roulette-poc/server.cjs || fail KASPA_POF_ROULETTE_ACCOUNTING_BROWSER_ONLY
+! grep -Ri --exclude-dir=node_modules "KAS wager\|KAS payout\|TN10 wager\|TN10 payout\|bankroll\|deposit\|withdraw" examples/roulette-poc >/dev/null || fail KASPA_POF_ROULETTE_NO_REAL_MONEY_WORDING
+! grep -q "sessionProfitLoss\|roundAccounting" examples/roulette-poc/server.cjs || fail KASPA_POF_ROULETTE_ACCOUNTING_NOT_IN_SERVER
+pass KASPA_POF_ROULETTE_DEMO_ACCOUNTING
+! grep -R --exclude-dir=node_modules "local_bundle_only\|browser-local-bundle-entropy\|deriveLocalEntropy" examples/roulette-poc >/dev/null || fail KASPA_POF_ROULETTE_NO_LOCAL_ONLY_PROOF
 pass KASPA_POF_ROULETTE_IMPORT_WIRING
 pass KASPA_POF_ROULETTE_TN10_VERIFY
 
-! grep -R "sample-round\|toccata-fairness-proof\|proof\.json\|round\.json" examples/roulette-poc >/dev/null || fail KASPA_POF_NO_STATIC_PROOF_FIXTURES
-! grep -Ri "mock" examples/roulette-poc >/dev/null || fail KASPA_POF_NO_MOCK_PATTERNS
-! grep -Ri "dry[- ]run" examples/roulette-poc >/dev/null || fail KASPA_POF_NO_DRY_RUN_PATTERNS
+! grep -R --exclude-dir=node_modules "sample-round\|toccata-fairness-proof\|proof\.json\|round\.json" examples/roulette-poc >/dev/null || fail KASPA_POF_NO_STATIC_PROOF_FIXTURES
+! grep -Ri --exclude-dir=node_modules "mock" examples/roulette-poc >/dev/null || fail KASPA_POF_NO_MOCK_PATTERNS
+! grep -Ri --exclude-dir=node_modules "dry[- ]run" examples/roulette-poc >/dev/null || fail KASPA_POF_NO_DRY_RUN_PATTERNS
 pass KASPA_POF_NO_FIXTURE_TRAPS
 
 pass KASPA_POF_SMOKE

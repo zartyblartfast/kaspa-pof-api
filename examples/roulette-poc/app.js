@@ -1,7 +1,7 @@
 import {
   deriveOutcome,
   verifyFairnessProof,
-} from 'kaspa-pof-api';
+} from 'kaspa-pof-api/browser';
 
 (() => {
   const tableLayout = window.createRouletteTableLayout();
@@ -22,6 +22,9 @@ import {
     selections: [],
     nextSelectionId: 1,
     clientSeed: '',
+    roundAccounting: null,
+    sessionProfitLoss: 0,
+    settledRoundIds: new Set(),
     busy: false,
     trace: {},
     diagnostics: null,
@@ -45,6 +48,7 @@ import {
     undoChipButton: document.getElementById('undoChipButton'),
     clearChipsButton: document.getElementById('clearChipsButton'),
     selectionList: document.getElementById('selectionList'),
+    demoAccountingCard: document.getElementById('demoAccountingCard'),
     resultValue: document.getElementById('resultValue'),
     resultNote: document.getElementById('resultNote'),
     spinButton: document.getElementById('spinButton'),
@@ -98,6 +102,7 @@ import {
     state.proof = null;
     state.verification = null;
     state.entropy = null;
+    state.roundAccounting = null;
     state.selections = [];
     state.nextSelectionId = 1;
     state.clientSeed = `client-${randomHex(32)}`;
@@ -188,6 +193,7 @@ import {
       state.verification = verification;
       state.diagnostics = { ...(state.diagnostics || {}), browserVerificationMs, browserStatus: verification.ok ? 'verified' : 'failed' };
       appendDiagnosticEvent('browser_package_verification', { ok: verification.ok, browserVerificationMs });
+      settleRoundAccounting(verification);
       state.stage = verification.ok ? 'verified' : 'revealed';
       setOperation(
         verification.ok ? 'TN10 proof verified in browser' : 'Browser proof verification failed',
@@ -367,6 +373,8 @@ import {
       betType: zone.bet_type,
       label: tableRenderer.visibleZoneLabel(zone),
       amount,
+      coveredNumbers: Array.isArray(zone.covered_numbers) ? [...zone.covered_numbers] : [],
+      payoutMultiplier: Number(zone.payout_multiplier),
       anchor,
     });
     if (state.stage === 'ready') state.stage = 'chips';
@@ -403,6 +411,7 @@ import {
     renderHeader();
     renderTable();
     renderSelections();
+    renderDemoAccounting();
     renderResult();
     renderOperationStatus();
     renderDiagnosticsPanel();
@@ -452,9 +461,95 @@ import {
     }
     state.selections.forEach((entry) => {
       const item = document.createElement('li');
-      item.innerHTML = `<strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.betType)} · ${escapeHtml(String(entry.amount))} units</span>`;
+      item.innerHTML = `<strong>${escapeHtml(entry.label)}</strong><span>${escapeHtml(entry.betType)} · ${escapeHtml(String(entry.amount))} demo units</span>`;
       el.selectionList.appendChild(item);
     });
+  }
+
+  function settleRoundAccounting(verification) {
+    const roundId = state.roundId || (state.proof && state.proof.round && state.proof.round.roundId);
+    if (!roundId) return;
+    if (!verification || !verification.ok) {
+      state.roundAccounting = {
+        status: 'unsettled_verification_failed',
+        stake: totalRoundStake(state.selections),
+        returned: null,
+        net: null,
+        roundId,
+      };
+      return;
+    }
+    if (state.settledRoundIds.has(roundId)) return;
+    const result = state.proof && state.proof.outcome && state.proof.outcome.result;
+    const accounting = calculateRoulettePayout(state.selections, result);
+    state.roundAccounting = { status: 'settled', roundId, ...accounting };
+    state.sessionProfitLoss += accounting.net;
+    state.settledRoundIds.add(roundId);
+  }
+
+  function calculateRoulettePayout(selections, result) {
+    const resultNumber = Number(result && result.number);
+    const settledSelections = (Array.isArray(selections) ? selections : []).map((entry) => {
+      const amount = Number(entry.amount) || 0;
+      const payoutMultiplier = Number.isFinite(Number(entry.payoutMultiplier)) ? Number(entry.payoutMultiplier) : 0;
+      const coveredNumbers = Array.isArray(entry.coveredNumbers) ? entry.coveredNumbers.map(Number) : [];
+      const won = Number.isInteger(resultNumber) && coveredNumbers.includes(resultNumber);
+      const returned = won ? amount * (payoutMultiplier + 1) : 0;
+      const net = won ? amount * payoutMultiplier : -amount;
+      return { ...entry, amount, payoutMultiplier, won, returned, net };
+    });
+    return {
+      stake: totalRoundStake(settledSelections),
+      returned: settledSelections.reduce((sum, entry) => sum + entry.returned, 0),
+      net: settledSelections.reduce((sum, entry) => sum + entry.net, 0),
+      winningSelections: settledSelections.filter((entry) => entry.won).length,
+      selections: settledSelections,
+    };
+  }
+
+  function totalRoundStake(selections) {
+    return (Array.isArray(selections) ? selections : []).reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+  }
+
+  function renderDemoAccounting() {
+    if (!el.demoAccountingCard) return;
+    const stake = state.roundAccounting ? state.roundAccounting.stake : totalRoundStake(state.selections);
+    const roundRows = [
+      ['Round stake', `${formatDemoUnits(stake)} demo units`],
+    ];
+    let statusText = 'Place chips to set the round stake.';
+    let tone = 'idle';
+    if (state.roundAccounting && state.roundAccounting.status === 'settled') {
+      roundRows.push(['Returned', `${formatDemoUnits(state.roundAccounting.returned)} demo units`]);
+      roundRows.push(['Round net', formatSignedDemoUnits(state.roundAccounting.net)]);
+      statusText = `${state.roundAccounting.winningSelections} winning selection${state.roundAccounting.winningSelections === 1 ? '' : 's'} after browser package verification.`;
+      tone = state.roundAccounting.net > 0 ? 'win' : state.roundAccounting.net < 0 ? 'loss' : 'push';
+    } else if (state.roundAccounting && state.roundAccounting.status === 'unsettled_verification_failed') {
+      roundRows.push(['Returned', 'not settled']);
+      roundRows.push(['Round net', 'not settled']);
+      statusText = 'Round was not settled because browser proof verification failed.';
+      tone = 'fail';
+    } else if (state.busy || ['spinning', 'closed', 'entropy', 'revealed'].includes(state.stage)) {
+      roundRows.push(['Returned', 'pending browser verification']);
+      roundRows.push(['Round net', 'pending browser verification']);
+      statusText = 'Settlement waits for successful browser/package proof replay.';
+      tone = 'pending';
+    } else if (stake > 0) {
+      statusText = 'Round stake is ready; settlement waits until after Spin Wheel and browser verification.';
+      tone = 'pending';
+    }
+    el.demoAccountingCard.innerHTML = `
+      <div class="accounting-heading">
+        <span class="label">Demo unit accounting</span>
+        <strong class="session-pl ${sessionTone(state.sessionProfitLoss)}">${formatSignedDemoUnits(state.sessionProfitLoss)}</strong>
+      </div>
+      <div class="accounting-grid ${escapeHtml(tone)}">
+        ${roundRows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join('')}
+        <div><span>Session P/L</span><strong>${escapeHtml(formatSignedDemoUnits(state.sessionProfitLoss))}</strong></div>
+      </div>
+      <p>${escapeHtml(statusText)}</p>
+      <p class="accounting-note">Demo units only. TN10/mainnet fees are proof/evidence costs, not player wager or payout currency.</p>
+    `;
   }
 
   function renderResult() {
@@ -802,6 +897,24 @@ import {
     if (!Number.isFinite(number)) return 'n/a';
     if (number < 1000) return `${Math.round(number)}ms`;
     return `${(number / 1000).toFixed(1)}s`;
+  }
+
+  function formatDemoUnits(value) {
+    const number = Number(value) || 0;
+    return Number.isInteger(number) ? String(number) : number.toFixed(2);
+  }
+
+  function formatSignedDemoUnits(value) {
+    const number = Number(value) || 0;
+    const prefix = number > 0 ? '+' : '';
+    return `${prefix}${formatDemoUnits(number)} demo units`;
+  }
+
+  function sessionTone(value) {
+    const number = Number(value) || 0;
+    if (number > 0) return 'win';
+    if (number < 0) return 'loss';
+    return 'push';
   }
 
   function escapeHtml(value) {

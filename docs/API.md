@@ -199,15 +199,14 @@ No mainnet transaction submission helper exists in this package. Mainnet paid an
 
 ## Published-package consumer target
 
-The roulette PoC is meant to showcase the npm API, not just local repo source. Current local development maps the package name to `/src/browser.mjs` through an import map. That proves browser-side package-runtime replay, but it does not prove that an external developer can install and consume the published npm artifact.
+The roulette PoC now showcases the published npm API instead of local repo source. It pins `kaspa-pof-api@0.1.0-alpha.1` under `examples/roulette-poc/`, imports `kaspa-pof-api/browser` in the browser, and serves the installed browser export from `examples/roulette-poc/node_modules/kaspa-pof-api/src/browser.mjs`.
 
-Agreed next correction:
+Wiring details and anti-stale-code guards are recorded in `docs/ROULETTE_NPM_CONSUMER_WIRING.md`. The key guardrails are:
 
-1. Add an explicit browser-safe package export such as `kaspa-pof-api/browser` that maps to `src/browser.mjs` and excludes Node-only transaction submission helpers.
-2. Publish `kaspa-pof-api@0.1.0-alpha.1` after final approval of account, contents, and version.
-3. Give `examples/roulette-poc/` its own consumer dependency on the published package version.
-4. Serve or bundle the installed package browser export for the PoC instead of mapping to `/src/browser.mjs`.
-5. Add smoke/regression checks that fail if the roulette PoC reverts to local repo source, a trusted proof endpoint, or a fake/static proof path.
+1. Keep `examples/roulette-poc/package.json` pinned to the intended published version.
+2. Keep the browser import as `kaspa-pof-api/browser`.
+3. Serve the installed package browser export for the PoC instead of mapping to `/src/browser.mjs`.
+4. Keep smoke/regression checks that fail if the roulette PoC reverts to local repo source, a trusted proof endpoint, or a fake/static proof path.
 
 ## Publish readiness
 

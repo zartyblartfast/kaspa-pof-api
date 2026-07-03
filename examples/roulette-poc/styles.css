@@ -119,6 +119,7 @@ h3 { margin: 0 0 8px; }
 .claim-card,
 .result-card,
 .ledger-card,
+.demo-accounting-card,
 .flow-card,
 .lane-title-card {
   border: 1px solid var(--line);
@@ -156,7 +157,8 @@ h3 { margin: 0 0 8px; }
 .round-summary,
 .claim-card,
 .result-card,
-.ledger-card {
+.ledger-card,
+.demo-accounting-card {
   border-radius: 18px;
   padding: 16px;
   background: rgba(255, 255, 255, 0.045);
@@ -270,6 +272,66 @@ h3 { margin: 0 0 8px; }
 .selection-list li { padding: 11px; border-radius: 14px; border: 1px solid rgba(255,255,255,.1); background: rgba(255,255,255,.05); }
 .selection-list strong,
 .selection-list span { display: block; }
+
+.demo-accounting-card {
+  display: grid;
+  gap: 10px;
+  border-color: rgba(243, 200, 75, 0.26);
+}
+.accounting-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.accounting-heading .session-pl {
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 950;
+  background: rgba(148, 163, 184, 0.12);
+}
+.session-pl.win { color: #ccffd6; background: rgba(85, 214, 107, 0.14); }
+.session-pl.loss { color: #ffc4c4; background: rgba(239, 68, 68, 0.14); }
+.session-pl.push { color: var(--muted); }
+.accounting-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.accounting-grid div {
+  padding: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+}
+.accounting-grid span {
+  display: block;
+  color: var(--quiet);
+  font-size: 0.7rem;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.accounting-grid strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.9rem;
+}
+.accounting-grid.win div { border-color: rgba(85, 214, 107, 0.22); }
+.accounting-grid.loss div,
+.accounting-grid.fail div { border-color: rgba(239, 68, 68, 0.24); }
+.accounting-grid.pending div { border-color: rgba(243, 200, 75, 0.2); }
+.demo-accounting-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.42;
+}
+.demo-accounting-card .accounting-note {
+  color: var(--quiet);
+  font-size: 0.76rem;
+}
 
 .live-proof-status { margin: -2px 0 14px; }
 .operation-status { margin: 0 0 20px; }

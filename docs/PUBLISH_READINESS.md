@@ -1,9 +1,9 @@
 # Publish Readiness Review
 
-Date: 2026-07-02
-Commit reviewed: `dee2579 feat: add roulette diagnostics endpoint racing`
+Date: 2026-07-03
+State reviewed: local `fee0ec4 docs: clarify npm package consumer boundary` plus uncommitted browser-export readiness changes
 
-This review records the package contents, version, npm auth state, and publish blockers before any npm publish step. It does not publish the package.
+This review records the package contents, version, npm auth state, publish result, and post-publish consumer checks. It does not authorize future publishes.
 
 ## Package identity
 
@@ -12,11 +12,12 @@ This review records the package contents, version, npm auth state, and publish b
   "name": "kaspa-pof-api",
   "version": "0.1.0-alpha.1",
   "main": "./src/index.cjs",
-  "types": "./src/index.d.ts"
+  "types": "./src/index.d.ts",
+  "exports": [".", "./browser"]
 }
 ```
 
-The package root exports only the runtime-first API through `.`. The legacy HTTP client is not exported.
+The package root exports only the runtime-first API through `.`. The browser-safe subpath `kaspa-pof-api/browser` maps to `src/browser.mjs`/`src/browser.d.ts` and intentionally omits the Node/operator TN10 transaction submitter. The legacy HTTP client is not exported.
 
 ## npm registry state
 
@@ -24,27 +25,32 @@ Commands run:
 
 ```bash
 npm whoami
-npm view kaspa-pof-api version dist-tags --json
-npm pack --dry-run --json
+npm view kaspa-pof-api@0.1.0-alpha.1 version --json
+npm pack --dry-run
+packed tarball install/import smoke for kaspa-pof-api/browser
 ```
 
 Observed state:
 
 - `npm whoami`: `bitcoin-card-mcp`
-- `npm view kaspa-pof-api ...`: `E404 Not Found`
-- Interpretation: the `kaspa-pof-api` package name is currently unpublished on the configured npm registry from this environment.
+- `npm view kaspa-pof-api ...`: `E404 Not Found` before publish
+- Published result: `kaspa-pof-api@0.1.0-alpha.1` is now available on npm at `https://registry.npmjs.org/kaspa-pof-api/-/kaspa-pof-api-0.1.0-alpha.1.tgz`.
+- Published shasum: `f0abd63f48bf2121ee3d25f1ae5a97630286e793`.
+- Published integrity: `sha512-Z+gKFHIUYaV970M4TwEjYmrwU+4t8kegY8LvVbOZro5k1052RgRKgxx5ZloPVQpGWPVGvMwHpe4SEu7ONnKTeA==`.
 
 ## Dry-run package contents
 
 `npm pack --dry-run --json` passed. Because this review file is itself included in the tarball, exact tarball hashes change when this file changes; use the current `npm pack --dry-run` output as the authoritative hash before publishing.
 
-Observed tarball shape:
+Observed tarball shape after adding the browser export:
 
 ```text
 name: kaspa-pof-api
 version: 0.1.0-alpha.1
 filename: kaspa-pof-api-0.1.0-alpha.1.tgz
-files: 53
+files: 54
+includes: src/browser.d.ts and src/browser.mjs
+packed-browser-export smoke: PASS
 ```
 
 Included top-level package areas:
@@ -82,23 +88,16 @@ These docs include development/handover material. Decide before publishing wheth
 
 ## Current publish decision points
 
-Before publish, decide:
-
-1. Version decision: publish candidate is now `0.1.0-alpha.1`.
-2. Whether the npm account `bitcoin-card-mcp` is the intended publishing account.
-3. Whether all files under `docs/` should be public in the npm tarball.
-4. Whether the selected public live evidence JSON files under `references/` should remain included in npm. Current package examples use those files, and they contain no private key material.
+Pre-publish decisions were made for `0.1.0-alpha.1` and the package was published from npm account `bitcoin-card-mcp`. For any future version, re-check account, version, docs inclusion, and selected public live evidence JSON files before publishing.
 
 ## Post-publish consumer correction
 
-Publishing the package is necessary but not sufficient for the roulette PoC to demonstrate the npm API. The current PoC import map resolves `kaspa-pof-api` to local repo source at `/src/browser.mjs`.
+Publishing alone was not sufficient for the roulette PoC to demonstrate the npm API, so the PoC was corrected after publish:
 
-After publish:
-
-1. Add/verify a browser-safe export such as `kaspa-pof-api/browser`.
-2. Give `examples/roulette-poc/` its own dependency on `kaspa-pof-api@0.1.0-alpha.1`.
-3. Serve or bundle the installed package browser export from the PoC instead of mapping to `/src/browser.mjs`.
-4. Add checks that fail if the PoC reverts to local repo source, a trusted proof endpoint, or static/fake proof data.
+1. `examples/roulette-poc/` has its own dependency on `kaspa-pof-api@0.1.0-alpha.1`.
+2. The PoC serves the installed package browser export from `examples/roulette-poc/node_modules/kaspa-pof-api/src/browser.mjs` instead of mapping to `/src/browser.mjs`.
+3. Checks fail if the PoC reverts to local repo source, a trusted proof endpoint, or static/fake proof data.
+4. The package exposes and tests `kaspa-pof-api/browser`.
 
 Spend/fee transaction submission may remain in a Node/server/operator path because private keys should not live in the browser. That path may use package helpers to create public evidence; it must not replace browser/package proof verification.
 
@@ -110,13 +109,16 @@ The latest verification baseline for this milestone:
 npm test
 npm run smoke
 npm pack --dry-run
+npm run smoke:published
 ```
 
 Expected status:
 
-- `npm test`: PASS, 77 tests / 22 suites
-- `npm run smoke`: PASS, including `KASPA_POF_ROULETTE_TN10_VERIFY=PASS` and `KASPA_POF_SMOKE=PASS`
-- `npm pack --dry-run`: PASS, 53 files before these doc updates
+- `npm test`: PASS, 78 tests / 22 suites
+- `npm run smoke`: PASS, including `KASPA_POF_PACKAGE_METADATA=PASS`, `KASPA_POF_ROULETTE_TN10_VERIFY=PASS`, and `KASPA_POF_SMOKE=PASS`
+- `npm pack --dry-run`: PASS, 54 files after adding `kaspa-pof-api/browser`
+- packed tarball install/import smoke: PASS for `kaspa-pof-api/browser`, and the browser export does not expose `submitTn10AnchorTransaction`
+- `npm run smoke:published`: PASS against `kaspa-pof-api@0.1.0-alpha.1` installed from the public npm registry in a fresh temp project. It verifies ESM/CJS/browser exports, core proof primitives, generic outcome replay, fail-closed tampering, anchor evidence/policy helpers, and live proof-root evidence replay without using roulette app code.
 
 ## Publish guardrail
 

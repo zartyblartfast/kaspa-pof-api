@@ -49,4 +49,13 @@ describe('package root runtime API', () => {
     assert.equal(typeof browserApi.deriveOutcome, 'function');
     assert.equal('submitTn10AnchorTransaction' in browserApi, false);
   });
+
+  it('exposes the browser runtime through the package subpath export', async () => {
+    const browserApi = await import('kaspa-pof-api/browser');
+
+    assert.equal(typeof browserApi.verifyFairnessProof, 'function');
+    assert.equal(typeof browserApi.hashCommitment, 'function');
+    assert.equal(typeof browserApi.deriveOutcome, 'function');
+    assert.equal('submitTn10AnchorTransaction' in browserApi, false);
+  });
 });

@@ -2,7 +2,7 @@ import { sha256Hex } from '../commitment.mjs';
 import { canonicalJson } from '../ledger.mjs';
 import { parseSompi, validateTn10BroadcastPolicy } from './policy.mjs';
 
-const DEFAULT_KASPA_WASM_PKG = '/tmp/kaspa-toccata-api-spikes/rusty-kaspa-toccata/wasm/nodejs/kaspa';
+const DEFAULT_KASPA_WASM_PKG = '/tmp/kaspa-pof-api-spikes/rusty-kaspa/wasm/nodejs/kaspa';
 
 async function submitTn10AnchorTransaction({
   kaspa,
