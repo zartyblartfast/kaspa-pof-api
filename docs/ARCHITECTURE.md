@@ -75,7 +75,26 @@ A VPS/Node/Python/Vercel service can remain useful for:
 
 But it should not be required to independently verify fairness. In the roulette PoC, the service creates rounds and supplies real TN10 evidence, streams progress diagnostics, and logs per-spin JSONL timing data, but the browser calls the package verifier and displays that result. RPC endpoint racing and fallback are availability/UX concerns only; they do not change the proof authority.
 
+### Spend / fee / transaction submission boundary
+
+Spend paths are different from proof verification. A browser consumer should not hold private keys or broadcast paid transactions directly. Real transaction submission is allowed to live behind a Node/server/operator boundary, provided that the server is treated as an evidence-producing adapter and not as a proof authority.
+
 The package may expose explicit TN10 transaction-anchor submission helpers because TN10 spends testnet funds and is useful for proof-of-fairness anchoring. That path must remain opt-in and fail closed unless the caller supplies a TN10 private key, explicit broadcast enablement, the acknowledgement phrase, and a fee cap that covers the created transaction summary. No mainnet submitter exists in the package.
+
+The intended split is:
+
+```text
+Node/server/operator process
+  uses package TN10 submit helpers with private key + fee cap + acknowledgement
+  returns public transaction evidence / proof bundle
+
+browser/app consumer
+  imports the package browser verifier
+  verifies the returned evidence/proof locally
+  displays the package verifier result
+```
+
+This is acceptable because private-key custody and broadcast are operational concerns. It would not be acceptable for the server to return a trusted fairness verdict that bypasses package replay.
 
 ## Claim levels to design
 

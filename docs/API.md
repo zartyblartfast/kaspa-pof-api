@@ -179,7 +179,35 @@ The reference files contain public evidence only. They do not contain private ke
 
 `submitTn10AnchorTransaction()` is TN10-only and guarded. It requires explicit broadcast enablement, the acknowledgement phrase, a TN10 private key, and a fee cap checked against the created transaction summary before signing/submission.
 
+This helper is for Node/server/operator environments, not the browser roulette UI. The browser-safe runtime should verify public proof/evidence, not hold private keys or perform spend broadcasts. A service may use the package submit helper to create public anchor evidence, then return that evidence in a portable proof bundle. The browser/app must still call the package verifier and display the verifier result.
+
+Acceptable split:
+
+```text
+server/operator: package guarded TN10 submission helper -> public tx evidence
+browser/app:     package verifier -> independent proof result
+```
+
+Unacceptable split:
+
+```text
+server: trusted fairness verdict
+browser: displays verdict without package replay
+```
+
 No mainnet transaction submission helper exists in this package. Mainnet paid anchoring remains future work and must stay explicit, fee-estimated, fee-capped, and acknowledged.
+
+## Published-package consumer target
+
+The roulette PoC is meant to showcase the npm API, not just local repo source. Current local development maps the package name to `/src/browser.mjs` through an import map. That proves browser-side package-runtime replay, but it does not prove that an external developer can install and consume the published npm artifact.
+
+Agreed next correction:
+
+1. Add an explicit browser-safe package export such as `kaspa-pof-api/browser` that maps to `src/browser.mjs` and excludes Node-only transaction submission helpers.
+2. Publish `kaspa-pof-api@0.1.0-alpha.1` after final approval of account, contents, and version.
+3. Give `examples/roulette-poc/` its own consumer dependency on the published package version.
+4. Serve or bundle the installed package browser export for the PoC instead of mapping to `/src/browser.mjs`.
+5. Add smoke/regression checks that fail if the roulette PoC reverts to local repo source, a trusted proof endpoint, or a fake/static proof path.
 
 ## Publish readiness
 

@@ -29,6 +29,8 @@ Given a pre-committed hidden server input, fixed user/app inputs, and future Kas
 - `examples/roulette-poc/app.js` imports `kaspa-pof-api` in the browser and verifies the returned `tn10_future_entropy` proof bundle through `verifyFairnessProof()` with a roulette-specific outcome deriver.
 - The server does not expose a trusted proof-verdict endpoint. Any service path is evidence plumbing; the package runtime remains the verifier.
 
+Current gap: the PoC currently maps `kaspa-pof-api` to local repo source at `/src/browser.mjs`. That is acceptable for development, but it is not yet proof that a published npm package artifact is being consumed.
+
 
 ## Terminology
 
@@ -304,6 +306,8 @@ submitTn10AnchorTransaction({
 
 The submitter uses a caller-supplied Kaspa wasm kit or `KASPA_WASM_PKG` and creates/signs/submits through TN10 wRPC. It fails closed before signing/submission if the network is not `testnet-10`, the private key shape is invalid, broadcast is not explicitly enabled, the acknowledgement is missing, or the created transaction fee estimate exceeds `feeCapSompi`.
 
+This submitter is for Node/server/operator environments. Browser consumers should not hold private keys or perform spend broadcasts. A service may use the package submitter to produce public anchor transaction evidence, but the consuming app/browser must still verify the returned proof bundle with package runtime APIs.
+
 No mainnet transaction submission helper exists. Mainnet paid anchoring remains design-only until a separate explicit fee/acknowledgement process is agreed.
 
 ## Verification rules draft
@@ -379,6 +383,8 @@ Roulette-specific consumer code may include:
 - proof display.
 
 Roulette-specific code must not become required by the core package.
+
+Before calling the PoC an npm API showcase, publish `kaspa-pof-api@0.1.0-alpha.1`, add/verify a browser-safe export such as `kaspa-pof-api/browser`, install/pin the published package under `examples/roulette-poc/`, and serve or bundle that installed package export instead of the repo-root source file.
 
 ## Mainnet policy
 

@@ -1,7 +1,7 @@
 # Publish Readiness Review
 
 Date: 2026-07-02
-Commit reviewed: `b15c773 Add runtime proof-root anchored verification`
+Commit reviewed: `dee2579 feat: add roulette diagnostics endpoint racing`
 
 This review records the package contents, version, npm auth state, and publish blockers before any npm publish step. It does not publish the package.
 
@@ -44,7 +44,7 @@ Observed tarball shape:
 name: kaspa-pof-api
 version: 0.1.0-alpha.1
 filename: kaspa-pof-api-0.1.0-alpha.1.tgz
-files: 52
+files: 53
 ```
 
 Included top-level package areas:
@@ -89,6 +89,19 @@ Before publish, decide:
 3. Whether all files under `docs/` should be public in the npm tarball.
 4. Whether the selected public live evidence JSON files under `references/` should remain included in npm. Current package examples use those files, and they contain no private key material.
 
+## Post-publish consumer correction
+
+Publishing the package is necessary but not sufficient for the roulette PoC to demonstrate the npm API. The current PoC import map resolves `kaspa-pof-api` to local repo source at `/src/browser.mjs`.
+
+After publish:
+
+1. Add/verify a browser-safe export such as `kaspa-pof-api/browser`.
+2. Give `examples/roulette-poc/` its own dependency on `kaspa-pof-api@0.1.0-alpha.1`.
+3. Serve or bundle the installed package browser export from the PoC instead of mapping to `/src/browser.mjs`.
+4. Add checks that fail if the PoC reverts to local repo source, a trusted proof endpoint, or static/fake proof data.
+
+Spend/fee transaction submission may remain in a Node/server/operator path because private keys should not live in the browser. That path may use package helpers to create public evidence; it must not replace browser/package proof verification.
+
 ## Verification baseline
 
 The latest verification baseline for this milestone:
@@ -101,9 +114,9 @@ npm pack --dry-run
 
 Expected status:
 
-- `npm test`: PASS, 72 tests / 21 suites
-- `npm run smoke`: PASS, including `KASPA_POF_PROOF_ROOT_ANCHORED=PASS` and `KASPA_POF_PUBLIC_EXAMPLES=PASS`
-- `npm pack --dry-run`: PASS
+- `npm test`: PASS, 77 tests / 22 suites
+- `npm run smoke`: PASS, including `KASPA_POF_ROULETTE_TN10_VERIFY=PASS` and `KASPA_POF_SMOKE=PASS`
+- `npm pack --dry-run`: PASS, 53 files before these doc updates
 
 ## Publish guardrail
 

@@ -30,6 +30,10 @@ See `docs/API.md` for runtime API examples, including `tn10_proof_root_anchored`
 
 `examples/roulette-poc/` is now the in-repo roulette consumer for this package runtime model. It includes a roulette-specific Node server for round orchestration, hidden seed custody, chip-ledger locking, live TN10 evidence fetching, SSE/JSONL diagnostics, and a bounded TN10 WRPC endpoint race for responsive public-node evidence access. The browser imports `kaspa-pof-api` and verifies the returned `tn10_future_entropy` proof bundle with `verifyFairnessProof()`. The server supplies evidence; it is not a proof-authority endpoint. The current deployed roulette app can continue using its old npm API and VPS node/server unchanged.
 
+Current local-development caveat: the roulette PoC currently maps `kaspa-pof-api` to this repo's `/src/browser.mjs`. That proves browser-side package-runtime replay, but not consumption of a published npm artifact. The agreed next step is to publish `kaspa-pof-api@0.1.0-alpha.1`, add/verify an explicit browser-safe package export, and convert the roulette PoC to install/pin and serve or bundle the published package instead of local repo source.
+
+Spend/fee transaction submission has a separate boundary: private-key TN10 submission may run in a Node/server/operator process using package helpers and explicit fee/acknowledgement gates. That server path may produce public evidence, but proof verification must remain package-runtime replay in the consuming app/browser.
+
 ## Target package direction
 
 The package should become general-purpose and app-agnostic:

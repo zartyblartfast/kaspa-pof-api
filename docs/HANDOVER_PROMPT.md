@@ -38,6 +38,8 @@ UI displays the package verifier result
 
 A server may create rounds, store state, fetch TN10/mainnet evidence, host files, or submit explicitly gated anchors. It must not be the proof authority. No `/v1/proofs/verify`-style trusted verdict should be used by the new roulette PoC.
 
+Spend/fee-related transaction submission is allowed to run through a Node/server/operator process because browsers should not hold private keys. That process may use package helpers such as `submitTn10AnchorTransaction()` to create public transaction evidence, but the browser/app must still verify the returned proof bundle with the package runtime.
+
 ## Current package state
 
 Package version: `0.1.0-alpha.1`.
@@ -91,7 +93,7 @@ Architecture:
 
 - `examples/roulette-poc/server.cjs` is roulette-specific infrastructure.
 - It creates committed rounds, keeps hidden server seeds server-side, accepts locked chip ledgers, fetches real TN10 future-block evidence via rusty-kaspa WASM, races bounded TN10 WRPC endpoints with resolver fallback, streams SSE diagnostics, writes per-spin JSONL logs, assembles portable `tn10_future_entropy` proof bundles, and sanity-checks those bundles with the package runtime.
-- The browser imports `kaspa-pof-api` through an import map to `/src/browser.mjs`.
+- The browser imports `kaspa-pof-api` through an import map to `/src/browser.mjs`. This is a local development mapping, not proof that the published npm artifact is being consumed.
 - The browser calls `verifyFairnessProof(proof, { outcomeDerivers })` itself and displays that package verifier result.
 - Roulette-specific outcome mapping remains in the example consumer via `roulette-poc:number-v1`; package core remains app-agnostic.
 - The previous `local_bundle_only` browser-local entropy path was removed from the roulette PoC.
@@ -160,6 +162,18 @@ package candidate: kaspa-pof-api-0.1.0-alpha.1.tgz
 
 Re-run `npm pack --dry-run` before any publish/package-content decision.
 
+## Current npm package publication status
+
+`kaspa-pof-api@0.1.0-alpha.1` has been tested and dry-run packed, but it has not yet been published to npm. The older published package is `kaspa-toccata-api@0.1.1`; that is the old HTTP-client-centered package and is not the new package-runtime API.
+
+Agreed next actions:
+
+1. Finalize package contents/account/version and publish `kaspa-pof-api@0.1.0-alpha.1` only after explicit approval.
+2. Add/verify a browser-safe package export such as `kaspa-pof-api/browser` so browser consumers do not import Node-only transaction submission helpers.
+3. Convert `examples/roulette-poc/` into a real npm consumer by installing/pinning the published `kaspa-pof-api` package and serving or bundling the installed browser export.
+4. Add regression checks so the roulette PoC fails if it maps back to `/src/browser.mjs`, reintroduces a trusted proof endpoint, or uses static/fake proof data.
+5. Keep spend/broadcast work behind a Node/server/operator boundary, but keep proof verification in the package runtime.
+
 ## User preferences / constraints
 
 - No mocks, static proof/result fixtures, spoofed API data, fake local proofs, or half-baked shortcuts.
@@ -193,6 +207,6 @@ npm run smoke
 npm pack --dry-run
 ```
 
-3. For any further roulette UI/server changes, run the live example server and complete a real browser create/place-chip/spin flow; record endpoint-race diagnostics and whether the browser reaches `Browser package verified TN10 proof` with claim level `tn10_future_entropy`.
+3. Before publishing, re-run `npm pack --dry-run` and get explicit user agreement on package contents/version/auth state and npm account.
 
-4. Before publishing, re-run `npm pack --dry-run` and get explicit user agreement on package contents/version/auth state.
+4. After publishing, update the roulette PoC to consume the installed npm package artifact rather than local repo source, then run a real browser create/place-chip/spin flow and confirm `Browser package verified TN10 proof` with claim level `tn10_future_entropy`.
