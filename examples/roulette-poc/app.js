@@ -6,8 +6,10 @@ import {
 (() => {
   const tableLayout = window.createRouletteTableLayout();
   const tableRenderer = window.RouletteTableRenderer;
+  const wheelRenderer = window.RouletteWheelRenderer;
   const stageOrder = ['boot', 'ready', 'chips', 'spinning', 'closed', 'entropy', 'revealed', 'verified'];
   const ROULETTE_CLAIM_LEVEL = 'tn10_future_entropy';
+  const MIN_WHEEL_SPIN_MS = 3000;
   const rouletteOutcomeDerivers = {
     'roulette-poc:number-v1': deriveRouletteOutcome,
   };
@@ -25,6 +27,13 @@ import {
     roundAccounting: null,
     sessionProfitLoss: 0,
     settledRoundIds: new Set(),
+    pendingOutcome: null,
+    wheel: {
+      phase: 'idle',
+      startedAt: null,
+      result: null,
+      revealReady: false,
+    },
     busy: false,
     trace: {},
     diagnostics: null,
@@ -43,6 +52,7 @@ import {
     roundId: document.getElementById('roundId'),
     roundStage: document.getElementById('roundStage'),
     tableHost: document.getElementById('tableHost'),
+    wheelHost: document.getElementById('wheelHost'),
     stake: document.getElementById('stake'),
     chipPresets: [...document.querySelectorAll('[data-chip-amount]')],
     undoChipButton: document.getElementById('undoChipButton'),
@@ -103,6 +113,8 @@ import {
     state.verification = null;
     state.entropy = null;
     state.roundAccounting = null;
+    state.pendingOutcome = null;
+    state.wheel = { phase: 'idle', startedAt: null, result: null, revealReady: false };
     state.selections = [];
     state.nextSelectionId = 1;
     state.clientSeed = `client-${randomHex(32)}`;
@@ -135,6 +147,8 @@ import {
     if (state.busy || !state.roundId || !canPlaceChips()) return;
     state.busy = true;
     state.stage = 'spinning';
+    state.pendingOutcome = null;
+    state.wheel = { phase: 'spinning', startedAt: performance.now(), result: null, revealReady: false };
     closeSpinEventSource();
     state.diagnostics = null;
     state.diagnosticEvents = [];
@@ -183,9 +197,7 @@ import {
         spec: state.proof.outcome,
         derivers: rouletteOutcomeDerivers,
       });
-      state.trace.browserOutcome = independentlyDerivedOutcome;
-      state.stage = 'revealed';
-      renderAll();
+      state.pendingOutcome = independentlyDerivedOutcome;
 
       const browserVerifyStarted = performance.now();
       const verification = verifyFairnessProof(state.proof, { outcomeDerivers: rouletteOutcomeDerivers });
@@ -193,16 +205,25 @@ import {
       state.verification = verification;
       state.diagnostics = { ...(state.diagnostics || {}), browserVerificationMs, browserStatus: verification.ok ? 'verified' : 'failed' };
       appendDiagnosticEvent('browser_package_verification', { ok: verification.ok, browserVerificationMs });
+      if (!verification.ok) {
+        state.wheel = { ...state.wheel, phase: 'error', result: null, revealReady: false };
+        settleRoundAccounting(verification);
+        state.stage = 'revealed';
+        setOperation('Browser proof verification failed', verification.errors.map((entry) => entry.message).join('; '), 'fail');
+        setStatus('Browser package proof failed', false);
+        return;
+      }
+
+      await completeWheelReveal(independentlyDerivedOutcome.result, browserVerificationMs);
+      state.trace.browserOutcome = independentlyDerivedOutcome;
       settleRoundAccounting(verification);
-      state.stage = verification.ok ? 'verified' : 'revealed';
+      state.stage = 'verified';
       setOperation(
-        verification.ok ? 'TN10 proof verified in browser' : 'Browser proof verification failed',
-        verification.ok
-          ? `kaspa-pof-api replayed commitment, ledger, TN10 block evidence, entropy, reveal, and roulette outcome in this browser. Browser verification took ${browserVerificationMs}ms.`
-          : verification.errors.map((entry) => entry.message).join('; '),
-        verification.ok ? 'pass' : 'fail'
+        'TN10 proof verified in browser',
+        `kaspa-pof-api replayed the proof locally, then the visual wheel landed on ${independentlyDerivedOutcome.result.number} ${independentlyDerivedOutcome.result.color}. Browser verification took ${browserVerificationMs}ms.`,
+        'pass'
       );
-      setStatus(verification.ok ? 'Browser package verified TN10 proof' : 'Browser package proof failed', verification.ok);
+      setStatus('Browser package verified TN10 proof', true);
     } catch (error) {
       rememberError('spinError', error);
       appendDiagnosticEvent('spin_error', { message: error.message });
@@ -213,6 +234,34 @@ import {
       state.busy = false;
       renderAll();
     }
+  }
+
+  async function completeWheelReveal(result, browserVerificationMs) {
+    const elapsed = state.wheel && Number.isFinite(state.wheel.startedAt) ? performance.now() - state.wheel.startedAt : 0;
+    const remainingMs = Math.max(0, MIN_WHEEL_SPIN_MS - elapsed);
+    setOperation(
+      'Wheel spinning to verified result',
+      `Browser package verification passed in ${browserVerificationMs}ms. Holding player-facing result reveal until the wheel simulation completes.`,
+      'busy'
+    );
+    setStatus('Wheel settling to browser-verified result…', null);
+    renderAll();
+    if (remainingMs > 0) await delay(remainingMs);
+
+    state.wheel = { ...state.wheel, phase: 'settling', result, revealReady: false };
+    renderAll();
+    await delay(wheelSettleMs());
+    state.wheel = { ...state.wheel, phase: 'stopped', result, revealReady: true };
+    renderAll();
+  }
+
+  function wheelSettleMs() {
+    const configured = wheelRenderer && wheelRenderer.WHEEL_TUNING && wheelRenderer.WHEEL_TUNING.settleMs;
+    return Number.isFinite(Number(configured)) ? Number(configured) : 1200;
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(ms) || 0)));
   }
 
   function consumeSpinEvents(eventsUrl) {
@@ -410,6 +459,7 @@ import {
   function renderAll() {
     renderHeader();
     renderTable();
+    renderWheel();
     renderSelections();
     renderDemoAccounting();
     renderResult();
@@ -442,13 +492,18 @@ import {
       chipStackCounts.set(stackKey, stackIndex + 1);
       return { id: `chip-${entry.id}`, x: entry.anchor.x, y: entry.anchor.y, stakeUnits: entry.amount, stackIndex };
     });
-    const resultNumber = state.round && state.round.result ? state.round.result.number : null;
+    const resultNumber = resultRevealReady() && state.proof && state.proof.outcome ? state.proof.outcome.result.number : null;
     tableRenderer.renderRouletteTable(el.tableHost, tableLayout, {
       chips,
       highlightedNumber: resultNumber,
       allowBetPlacement: canPlaceChips(),
       onZoneClick: addSelection,
     });
+  }
+
+  function renderWheel() {
+    if (!el.wheelHost || !wheelRenderer) return;
+    wheelRenderer.renderRouletteWheel(el.wheelHost, state.wheel || { phase: 'idle' });
   }
 
   function renderSelections() {
@@ -557,10 +612,12 @@ import {
   }
 
   function renderResult() {
-    const result = state.proof && state.proof.outcome ? state.proof.outcome.result : state.round && state.round.result;
+    const result = resultRevealReady() && state.proof && state.proof.outcome ? state.proof.outcome.result : null;
     if (!result) {
       el.resultValue.textContent = 'hidden';
-      el.resultNote.textContent = state.round && state.round.commitment
+      el.resultNote.textContent = state.wheel && ['spinning', 'settling'].includes(state.wheel.phase)
+        ? 'Wheel simulation is waiting to reveal the browser-verified package result.'
+        : state.round && state.round.commitment
         ? 'Commitment recorded before chip placement.'
         : 'Preparing package commitment.';
       return;
@@ -569,6 +626,10 @@ import {
     el.resultNote.textContent = state.verification && state.verification.ok
       ? 'Verified in this browser by kaspa-pof-api proof replay.'
       : 'Result included in the portable TN10 proof bundle.';
+  }
+
+  function resultRevealReady() {
+    return Boolean(state.wheel && state.wheel.revealReady && state.wheel.result && state.verification && state.verification.ok);
   }
 
   function renderOperationStatus() {
@@ -837,7 +898,7 @@ import {
       entropyTarget: () => state.proof && state.proof.entropy ? state.proof.entropy.target : undefined,
       entropy: () => state.entropy,
       entropyHash: () => state.entropy ? shortText(state.entropy.entropyHash) : undefined,
-      result: () => state.proof && state.proof.outcome ? `${state.proof.outcome.result.number} ${state.proof.outcome.result.color}` : undefined,
+      result: () => resultRevealReady() && state.proof && state.proof.outcome ? `${state.proof.outcome.result.number} ${state.proof.outcome.result.color}` : undefined,
       revealSummary: () => state.proof && state.proof.reveal ? 'Reveal matches the earlier commitment.' : undefined,
       verification: () => state.verification ? `ok: ${state.verification.ok}` : undefined,
       verificationForPlayer: () => state.verification && state.verification.ok ? 'The displayed result passed browser package proof replay.' : undefined,

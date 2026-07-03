@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kaspa PoF Roulette Runtime Example</title>
+  <title>Kaspa Toccata: Proof of Fairness — Browser-Verified Roulette PoC</title>
   <link rel="stylesheet" href="/examples/roulette-poc/styles.css">
   <script type="importmap">
     {
@@ -17,8 +17,8 @@
   <header class="page-header">
     <div>
       <p class="eyebrow">kaspa-pof-api package runtime roulette</p>
-      <h1>Roulette Package Runtime Example</h1>
-      <p class="subhead">A roulette consumer that imports kaspa-pof-api package runtime primitives and verifies a TN10 future-entropy proof bundle in the browser.</p>
+      <h1>Kaspa Toccata: Proof of Fairness</h1>
+      <p class="subhead">Browser-verified roulette PoC for a reusable Kaspa fairness layer: the game is the demo, while the imported package runtime replays the proof in the browser.</p>
     </div>
     <div id="serviceStatus" class="status-pill">Starting…</div>
   </header>
@@ -44,6 +44,7 @@
       <div class="game-grid">
         <div class="roulette-shell">
           <div id="tableHost" class="roulette-svg-host" aria-label="Clickable roulette table"></div>
+          <div id="wheelHost" class="roulette-wheel-host" aria-live="polite"></div>
         </div>
         <aside class="game-side-panel">
           <div class="result-card">
@@ -108,6 +109,7 @@
 
   <script src="/examples/roulette-poc/roulette-table-layout.js"></script>
   <script src="/examples/roulette-poc/roulette-table-renderer.js"></script>
+  <script src="/examples/roulette-poc/roulette-wheel-renderer.js"></script>
   <script type="module" src="/examples/roulette-poc/app.js"></script>
 </body>
 </html>

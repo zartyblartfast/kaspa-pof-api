@@ -6,6 +6,7 @@ const APP_PATH = new URL('../examples/roulette-poc/app.js', import.meta.url);
 const INDEX_PATH = new URL('../examples/roulette-poc/index.html', import.meta.url);
 const FLOW_PATH = new URL('../examples/roulette-poc/flowchart-spec.json', import.meta.url);
 const SERVER_PATH = new URL('../examples/roulette-poc/server.cjs', import.meta.url);
+const WHEEL_PATH = new URL('../examples/roulette-poc/roulette-wheel-renderer.js', import.meta.url);
 const EXAMPLE_PACKAGE_PATH = new URL('../examples/roulette-poc/package.json', import.meta.url);
 
 describe('roulette package-runtime consumer', () => {
@@ -90,7 +91,28 @@ describe('roulette package-runtime consumer', () => {
     assert.match(server, /WRPC_CONNECT_RACE_MS/);
     assert.match(server, /RpcConnectMs/);
     assert.match(server, /require\('kaspa-pof-api'\)/);
+    assert.match(server, /roulette-wheel-renderer\.js/);
     assert.doesNotMatch(server, /require\('\.\.\/\.\.\/src\/index\.cjs'\)|\/src\/browser\.mjs|path\.join\(ROOT, 'src\//);
     assert.doesNotMatch(server, /local_bundle_only|\/v1\/proofs\/verify|verified\s*:\s*true/i);
+  });
+
+  it('keeps the roulette wheel visual-only and gates result reveal on browser verification', () => {
+    const app = fs.readFileSync(APP_PATH, 'utf8');
+    const index = fs.readFileSync(INDEX_PATH, 'utf8');
+    const wheel = fs.readFileSync(WHEEL_PATH, 'utf8');
+
+    assert.match(index, /id="wheelHost"/);
+    assert.match(index, /roulette-wheel-renderer\.js/);
+    assert.match(wheel, /EUROPEAN_WHEEL_ORDER/);
+    assert.match(wheel, /WHEEL_TUNING/);
+    assert.match(wheel, /renderRouletteWheel/);
+    assert.match(wheel, /targetAngleForNumber/);
+    assert.match(app, /MIN_WHEEL_SPIN_MS\s*=\s*3000/);
+    assert.match(app, /completeWheelReveal/);
+    assert.match(app, /resultRevealReady/);
+    assert.match(app, /state\.verification && state\.verification\.ok/);
+    assert.match(app, /wheel simulation completes/);
+    assert.match(app, /settleRoundAccounting\(verification\)/);
+    assert.doesNotMatch(wheel, /fetch\(|EventSource|verifyFairnessProof|deriveOutcome|localStorage|sessionStorage/);
   });
 });

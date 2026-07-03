@@ -701,6 +701,7 @@ function sendStatic(res, pathname) {
     ['/examples/roulette-poc/flowchart-spec.json', path.join(APP_ROOT, 'flowchart-spec.json')],
     ['/examples/roulette-poc/roulette-table-layout.js', path.join(APP_ROOT, 'roulette-table-layout.js')],
     ['/examples/roulette-poc/roulette-table-renderer.js', path.join(APP_ROOT, 'roulette-table-renderer.js')],
+    ['/examples/roulette-poc/roulette-wheel-renderer.js', path.join(APP_ROOT, 'roulette-wheel-renderer.js')],
   ]);
   const filePath = routes.get(pathname) || resolveInstalledPackageAsset(pathname);
   if (!filePath) return sendJson(res, 404, { error: 'not found' });
