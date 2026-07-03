@@ -258,9 +258,19 @@
     };
   }
 
+  function chipAmountBadgeGeometry(stakeUnits) {
+    const label = String(stakeUnits);
+    const length = label.length;
+    const fontSize = length >= 4 ? 1.95 : length >= 3 ? 2.08 : 2.25;
+    const height = length === 1 ? 2.82 : 2.35;
+    const width = length === 1 ? height : Math.max(3.45, length * fontSize * 0.72 + 1.65);
+    return { label, fontSize, width, height };
+  }
+
   function appendChips(svg, chips) {
     chips.forEach((chip) => {
       const offset = computeChipStackOffset(chip.stackIndex || 0);
+      const amountBadge = chipAmountBadgeGeometry(chip.stakeUnits);
       const group = createSvgElement("g", {
         class: "chip-marker-group",
         transform: `translate(${chip.x + offset.x} ${chip.y + offset.y})`,
@@ -276,20 +286,35 @@
       const inner = createSvgElement("circle", {
         cx: 0,
         cy: 0,
-        r: 1.3,
+        r: 1.5,
         class: "chip-marker-inner",
+      });
+      const badge = createSvgElement("g", {
+        class: `chip-amount-badge chip-amount-digits-${Math.min(amountBadge.label.length, 4)}`,
+      });
+      const badgeShape = createSvgElement("rect", {
+        x: Number((-amountBadge.width / 2).toFixed(3)),
+        y: Number((-amountBadge.height / 2).toFixed(3)),
+        width: Number(amountBadge.width.toFixed(3)),
+        height: amountBadge.height,
+        rx: Number((amountBadge.height / 2).toFixed(3)),
+        ry: Number((amountBadge.height / 2).toFixed(3)),
+        class: "chip-amount-badge-shape",
       });
       const text = createSvgElement("text", {
         x: 0,
         y: 0.1,
         class: "chip-marker-label",
+        "font-size": amountBadge.fontSize,
         "text-anchor": "middle",
         "dominant-baseline": "middle",
       });
-      text.textContent = String(chip.stakeUnits);
+      text.textContent = amountBadge.label;
       group.appendChild(circle);
       group.appendChild(inner);
-      group.appendChild(text);
+      badge.appendChild(badgeShape);
+      badge.appendChild(text);
+      group.appendChild(badge);
       svg.appendChild(group);
     });
   }
